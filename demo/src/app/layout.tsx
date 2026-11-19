@@ -9,7 +9,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang='pt' data-theme='vercel'>
       <body>
         <Shell>{children}</Shell>
-        <Toaster />
+        <Toaster toastOptions={{ classNames: { description: '!text-current opacity-75' } }} />
       </body>
     </html>
   );
