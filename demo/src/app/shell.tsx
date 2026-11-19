@@ -170,7 +170,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const labelOff = '-translate-x-1 opacity-0 duration-200';
 
   const NavLink = ({ item, pequeno }: { item: Item; pequeno?: boolean }) => {
-    const atual = path === item.href;
+    const atual = path === item.href || (item.href !== '/' && path.startsWith(item.href + '/'));
     return (
       <Link
         href={item.href}
@@ -204,7 +204,8 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   // se a conta nova não tem acesso à página atual, vai para a primeira página dela
   useEffect(() => {
-    if (!papel.paginas.includes(path)) router.push(papel.paginas[0]);
+    const permitida = papel.paginas.some((p) => p === path || (p !== '/' && path.startsWith(p + '/')));
+    if (!permitida) router.push(papel.paginas[0]);
   }, [papel, path, router]);
   const conteudo = useRef<HTMLDivElement>(null);
   const fantasma = useRef<HTMLDivElement>(null);
@@ -244,6 +245,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     <DiscCtx.Provider value={familia.disc}>
       <div
         style={{ '--surface': '#FFFFFF', ...sub.vars, ...(escuro ? varsEscuro : {}) } as CSSProperties}
+        id='lousa-raiz'
         className={cn('flex h-screen bg-white text-(--ink)', escuro && 'escuro')}
       >
         <aside
