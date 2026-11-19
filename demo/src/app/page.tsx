@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Icons } from '@/components/icons';
@@ -160,6 +160,34 @@ export default function HorarioPage() {
     setNova('');
   };
 
+  // riscadas descem para o fim (pela ordem em que foram riscadas); por riscar mantêm a ordem original
+  const ordem = [
+    ...tarefas.filter((t) => !feitas[t]),
+    ...tarefas.filter((t) => feitas[t]).sort((x, y) => feitas[x] - feitas[y])
+  ];
+  const linhas = useRef(new Map<string, HTMLLIElement>());
+  const posicoes = useRef(new Map<string, number>());
+  const chaveOrdem = ordem.join('|');
+  // FLIP: cada linha desliza da posição antiga para a nova
+  useLayoutEffect(() => {
+    // medir tudo antes de animar (uma animação em curso mexe no getBoundingClientRect)
+    linhas.current.forEach((el) => el.getAnimations().forEach((a) => a.cancel()));
+    const novas = new Map([...linhas.current].map(([t, el]) => [t, el.getBoundingClientRect().top]));
+    linhas.current.forEach((el, t) => {
+      const antes = posicoes.current.get(t);
+      const depois = novas.get(t)!;
+      if (antes === undefined) {
+        el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 250, easing: 'ease-out' });
+      } else if (Math.abs(antes - depois) > 1) {
+        el.animate([{ transform: `translateY(${antes - depois}px)` }, { transform: 'none' }], {
+          duration: 500,
+          easing: 'cubic-bezier(0.32,0.72,0,1)'
+        });
+      }
+    });
+    posicoes.current = novas;
+  }, [chaveOrdem]);
+
   const diaHoje = agora ? (agora.getDay() + 6) % 7 : -1; // 0 = segunda
   const minAgora = agora ? agora.getHours() * 60 + agora.getMinutes() : 0;
   const mostraAgora = diaHoje >= 0 && diaHoje < 5 && minAgora >= INICIO * 60 && minAgora <= FIM * 60;
@@ -172,8 +200,8 @@ export default function HorarioPage() {
           <span className='rounded-full bg-white/25 px-2 text-sm'>{tarefas.filter((t) => !feitas[t]).length}</span>
         </div>
         <ul className='min-h-0 flex-1 space-y-1 overflow-auto p-3'>
-          {tarefas.map((t) => (
-            <li key={t} style={{ animation: 'aula-in 250ms ease-out' }}>
+          {ordem.map((t) => (
+            <li key={t} ref={(el) => void (el ? linhas.current.set(t, el) : linhas.current.delete(t))}>
               <label className='flex cursor-pointer items-center justify-between gap-2 rounded-lg px-2 py-2 text-sm hover:bg-(--soft)'>
                 <span className='min-w-0'>
                   <span className={cn('block', feitas[t] && 'line-through opacity-50')}>{t}</span>
