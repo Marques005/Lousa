@@ -14,49 +14,38 @@ const FIM = 20; // 20:00
 const H = 64; // px por hora
 const horas = Array.from({ length: FIM - INICIO + 1 }, (_, i) => INICIO + i);
 
-// [dia, início, fim, disciplina, professor/sala]
+// Tutor com sessão iniciada (mock, sem backend): só aparecem as aulas dele
+const TUTOR = { nome: 'Prof. Rita Almeida', disciplinas: 'Matemática e Física' };
+
+// [dia, início, fim, disciplina, turma/grupo · sala]
 type Aula = [number, string, string, string, string];
 const aulas: Aula[] = [
   // segunda
-  [0, '09:00', '10:30', 'Matemática', 'Prof. Rita · Sala 1'],
-  [0, '11:00', '12:30', 'Português', 'Prof. Ana · Sala 3'],
-  [0, '15:00', '16:30', 'Matemática', 'Prof. Rita · Sala 1'],
-  [0, '15:00', '16:30', 'Física', 'Prof. Nuno · Sala 2'],
-  [0, '16:30', '18:00', 'Física', 'Prof. Nuno · Sala 2'],
-  [0, '16:30', '18:00', 'Matemática', 'Prof. Hugo · Sala 4'],
-  [0, '18:00', '19:30', 'Inglês', 'Prof. Sara · Sala 1'],
+  [0, '09:00', '10:30', 'Matemática', '12.º ano · 3 alunos · Sala 1'],
+  [0, '11:00', '12:30', 'Física', '11.º ano · 4 alunos · Sala 2'],
+  [0, '15:00', '16:30', 'Matemática', '9.º ano · 5 alunos · Sala 1'],
+  [0, '16:30', '18:00', 'Matemática', '10.º ano · 4 alunos · Sala 1'],
+  [0, '18:00', '19:30', 'Física', '11.º ano · 3 alunos · Sala 2'],
   // terça
-  [1, '08:30', '10:00', 'Inglês', 'Prof. Sara · Sala 2'],
-  [1, '10:30', '12:00', 'Física', 'Prof. Nuno · Sala 2'],
-  [1, '14:00', '15:00', 'Português', 'Prof. Ana · Sala 3'],
-  [1, '15:00', '16:30', 'Física', 'Prof. Nuno · Sala 2'],
-  [1, '15:00', '16:30', 'Português', 'Prof. Ana · Sala 3'],
-  [1, '16:30', '18:00', 'Inglês', 'Prof. Sara · Sala 1'],
-  [1, '16:30', '18:00', 'Inglês', 'Prof. Sara · Sala 3'],
-  [1, '18:00', '19:30', 'Matemática', 'Prof. Rita · Sala 1'],
+  [1, '10:30', '12:00', 'Matemática', '11.º ano · 4 alunos · Sala 1'],
+  [1, '14:00', '15:00', 'Matemática', 'Apoio individual · Sala 4'],
+  [1, '15:00', '16:30', 'Física', '10.º ano · 5 alunos · Sala 2'],
+  [1, '18:00', '19:30', 'Matemática', '12.º ano · 4 alunos · Sala 1'],
   // quarta
-  [2, '09:00', '10:30', 'Matemática', 'Prof. Hugo · Sala 4'],
-  [2, '11:00', '12:30', 'Inglês', 'Prof. Sara · Sala 2'],
-  [2, '15:00', '16:30', 'Matemática', 'Prof. Rita · Sala 1'],
-  [2, '15:00', '16:30', 'Matemática', 'Prof. Hugo · Sala 4'],
-  [2, '16:30', '18:00', 'Física', 'Prof. Nuno · Sala 2'],
-  [2, '16:30', '18:00', 'Matemática', 'Prof. Rita · Sala 1'],
-  [2, '18:00', '19:30', 'Física', 'Prof. Nuno · Sala 2'],
+  [2, '09:00', '10:30', 'Física', '12.º ano · 3 alunos · Sala 2'],
+  [2, '15:00', '16:30', 'Matemática', '9.º ano · 5 alunos · Sala 1'],
+  [2, '16:30', '18:00', 'Matemática', '10.º ano · 4 alunos · Sala 1'],
+  [2, '18:00', '19:30', 'Física', '11.º ano · 4 alunos · Sala 2'],
   // quinta
-  [3, '08:30', '10:00', 'Português', 'Prof. Ana · Sala 3'],
-  [3, '10:30', '12:00', 'Matemática', 'Prof. Rita · Sala 1'],
-  [3, '14:00', '15:00', 'Física', 'Prof. Nuno · Sala 4'],
-  [3, '15:00', '16:30', 'Português', 'Prof. Ana · Sala 3'],
-  [3, '15:00', '16:30', 'Inglês', 'Prof. Sara · Sala 2'],
-  [3, '16:30', '18:00', 'Inglês', 'Prof. Sara · Sala 2'],
-  [3, '16:30', '18:00', 'Física', 'Prof. Nuno · Sala 4'],
-  [3, '18:00', '19:30', 'Português', 'Prof. Ana · Sala 3'],
+  [3, '10:30', '12:00', 'Matemática', '12.º ano · 3 alunos · Sala 1'],
+  [3, '14:00', '15:00', 'Física', 'Apoio individual · Sala 4'],
+  [3, '15:00', '16:30', 'Matemática', '11.º ano · 4 alunos · Sala 1'],
+  [3, '16:30', '18:00', 'Física', '10.º ano · 5 alunos · Sala 2'],
   // sexta
-  [4, '09:00', '10:30', 'Física', 'Prof. Nuno · Sala 2'],
-  [4, '11:00', '12:30', 'Matemática', 'Prof. Hugo · Sala 4'],
-  [4, '15:00', '16:30', 'Inglês', 'Prof. Sara · Sala 2'],
-  [4, '16:30', '18:00', 'Português', 'Prof. Ana · Sala 3'],
-  [4, '18:00', '19:30', 'Matemática', 'Prof. Hugo · Sala 4']
+  [4, '09:00', '10:30', 'Matemática', '10.º ano · 4 alunos · Sala 1'],
+  [4, '15:00', '16:30', 'Física', '12.º ano · 3 alunos · Sala 2'],
+  [4, '16:30', '18:00', 'Matemática', '9.º ano · 5 alunos · Sala 1'],
+  [4, '18:00', '19:30', 'Matemática', 'Preparação para exame · Sala 1']
 ];
 
 const min = (h: string) => {
@@ -160,7 +149,17 @@ export default function HorarioPage() {
         </form>
       </section>
 
-      <PageCard titulo='Horário'>
+      <PageCard
+        titulo='Horário'
+        acoes={
+          <div className='text-right text-sm'>
+            <div className='font-semibold'>{TUTOR.nome}</div>
+            <div className='text-xs opacity-60'>
+              {TUTOR.disciplinas} · {aulas.length} aulas por semana
+            </div>
+          </div>
+        }
+      >
         <div ref={grelha} className='min-h-0 flex-1 overflow-auto px-4 pb-4'>
           <div className='grid min-w-[720px] grid-cols-[60px_repeat(5,1fr)]'>
             {/* cabeçalho dos dias, fixo ao fazer scroll */}
@@ -198,7 +197,11 @@ export default function HorarioPage() {
               >
                 {/* linhas das horas e meias horas */}
                 {horas.map((h) => (
-                  <div key={h} className='absolute inset-x-0 border-t border-(--line)' style={{ top: (h - INICIO) * H }} />
+                  <div
+                    key={h}
+                    className='absolute inset-x-0 border-t border-(--line)'
+                    style={{ top: (h - INICIO) * H }}
+                  />
                 ))}
                 {horas.slice(0, -1).map((h) => (
                   <div
