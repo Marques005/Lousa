@@ -63,7 +63,8 @@ export default function AlunosPage() {
               <div className='text-right'>
                 <div
                   className={cn(
-                    'rounded-md px-2 py-0.5 text-sm font-bold',
+                    // inline-block: a caixa acompanha o número, não a legenda de baixo
+                    'inline-block rounded-md px-2 py-0.5 text-sm font-bold tabular-nums',
                     ok ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
                   )}
                 >
