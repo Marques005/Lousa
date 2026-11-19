@@ -160,10 +160,10 @@ export default function HorarioPage() {
     setNova('');
   };
 
-  // riscadas descem para o fim (pela ordem em que foram riscadas); por riscar mantêm a ordem original
+  // riscadas descem para baixo das por riscar, a mais recente primeiro; por riscar mantêm a ordem original
   const ordem = [
     ...tarefas.filter((t) => !feitas[t]),
-    ...tarefas.filter((t) => feitas[t]).sort((x, y) => feitas[x] - feitas[y])
+    ...tarefas.filter((t) => feitas[t]).sort((x, y) => feitas[y] - feitas[x])
   ];
   const linhas = useRef(new Map<string, HTMLLIElement>());
   const posicoes = useRef(new Map<string, number>());
