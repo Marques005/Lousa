@@ -1,0 +1,15 @@
+# dependências
+node_modules/
+
+# build / cache do Next.js
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# sistema / editor
+.DS_Store
+
+# variáveis de ambiente
+.env*
+!.env.example
