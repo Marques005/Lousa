@@ -69,6 +69,7 @@ function comPistas(dia: number) {
   }));
 }
 
+const CHAVE = 'lousa.tutor.tarefas';
 const EXPIRA = 30 * 60_000; // tarefas riscadas desaparecem passados 30 minutos
 
 const tarefasIniciais = [
@@ -87,6 +88,7 @@ export default function HorarioPage() {
   // tarefa riscada → hora em que foi riscada; passados 30 min é eliminada
   const [feitas, setFeitas] = useState<Record<string, number>>({});
   const [relogio, setRelogio] = useState(0);
+  const [carregado, setCarregado] = useState(false);
   const [nova, setNova] = useState('');
   const [agora, setAgora] = useState<Date | null>(null);
   const grelha = useRef<HTMLDivElement>(null);
@@ -112,9 +114,30 @@ export default function HorarioPage() {
     });
   };
 
-  // a cada 10 s: atualiza a contagem e elimina as tarefas riscadas há mais de 30 min
+  // guardado no browser (mock, sem backend): as tarefas e as riscadas sobrevivem a mudar de página ou recarregar
   useEffect(() => {
-    const t = setInterval(() => {
+    try {
+      const guardado = JSON.parse(localStorage.getItem(CHAVE) ?? 'null');
+      if (guardado?.tarefas) setTarefas(guardado.tarefas);
+      if (guardado?.feitas) setFeitas(guardado.feitas);
+    } catch {
+      /* sem acesso ao localStorage: fica só em memória */
+    }
+    setCarregado(true);
+  }, []);
+  useEffect(() => {
+    if (!carregado) return;
+    try {
+      localStorage.setItem(CHAVE, JSON.stringify({ tarefas, feitas }));
+    } catch {
+      /* idem */
+    }
+  }, [carregado, tarefas, feitas]);
+
+  // elimina as tarefas riscadas há mais de 30 min (ao abrir a página e depois a cada 10 s)
+  useEffect(() => {
+    if (!carregado) return;
+    const limpar = () => {
       const agoraMs = Date.now();
       setRelogio(agoraMs);
       setFeitas((f) => {
@@ -123,9 +146,11 @@ export default function HorarioPage() {
         setTarefas((ts) => ts.filter((x) => !expiradas.includes(x)));
         return Object.fromEntries(Object.entries(f).filter(([k]) => !expiradas.includes(k)));
       });
-    }, 10_000);
+    };
+    limpar();
+    const t = setInterval(limpar, 10_000);
     return () => clearInterval(t);
-  }, []);
+  }, [carregado]);
   const faltam = (t: string) =>
     Math.max(1, Math.ceil(Math.min(EXPIRA, EXPIRA - ((relogio || Date.now()) - feitas[t])) / 60_000));
   const adicionar = () => {
