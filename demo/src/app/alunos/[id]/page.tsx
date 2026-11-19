@@ -547,25 +547,81 @@ function CalendarioSessoes({ sessoes }: { sessoes: Atividade[] }) {
   );
 }
 
-// Notas por período (só notas finais de período, sem intercalares). O 1.º vem do mock;
-// os seguintes são lançados pelo tutor e ficam guardados no browser (sem backend).
+// Notas por ano letivo e período (só notas finais, sem intercalares).
+// - anos anteriores: gerados (mock) a partir das notas atuais do aluno
+// - ano atual: 1.º período vem do mock; os seguintes são lançados pelo tutor
+// - anos seguintes: o tutor passa o aluno de ano depois de lançar o 3.º período
+// O que o tutor lança fica guardado no browser (sem backend).
 type NotaDisc = { disciplina: string; nota: number };
 type Periodo = { periodo: string; notas: NotaDisc[] };
+type Escala = '1-5' | '0-20';
+type AnoLetivo = {
+  anoLetivo: string;
+  ano: number;
+  escala: Escala;
+  disciplinas: string[];
+  periodos: Periodo[];
+  editavel: boolean;
+};
+type Guardado = { anos: Record<string, Periodo[]>; extra: { anoLetivo: string; ano: number }[] };
 const PERIODOS = ['1.º período', '2.º período', '3.º período'];
 
-function useNotasLancadas(id: string) {
-  const [porAluno, setPorAluno] = useState<Record<string, Periodo[]>>({});
+const escalaDe = (ano: number): Escala => (ano <= 9 ? '1-5' : '0-20');
+const maxDe = (e: Escala) => (e === '1-5' ? 5 : 20);
+const minDe = (e: Escala) => (e === '1-5' ? 1 : 0);
+const positivaE = (e: Escala, n: number) => n >= (e === '1-5' ? 3 : 10);
+const anoLetivoMais = (al: string, k: number) => {
+  const y = Number(al.slice(0, 4)) + k;
+  return `${y}/${y + 1}`;
+};
+const curto = (al: string) => `${al.slice(0, 4)}/${al.slice(7)}`;
+
+// disciplinas por ano de escolaridade (tiradas do próprio mock)
+const discPorAno = (ano: number, a: Aluno): string[] => {
+  if (ano === a.ano) return a.notas.map((n) => n.disciplina);
+  const ref = alunos.find((x) => x.ano === Math.max(9, Math.min(12, ano)) && (ano <= 9 || a.ano <= 9 || x.curso === a.curso));
+  return (ref ?? a).notas.map((n) => n.disciplina);
+};
+
+// histórico determinístico: mantém o "nível" do aluno, com alguma variação entre anos e períodos
+function historico(a: Aluno): AnoLetivo[] {
+  let semente = [...a.id].reduce((h, c) => (h * 33 + c.charCodeAt(0)) >>> 0, 11);
+  const rnd = () => (semente = (semente * 1103515245 + 12345) >>> 0) / 2 ** 32;
+  const nivelGeral = a.notas.reduce((s, n) => s + n.nota, 0) / (a.notas.length || 1) / notaMax(a);
+  return [2, 1].map((k) => {
+    const ano = a.ano - k;
+    const escala = escalaDe(ano);
+    const max = maxDe(escala);
+    const disciplinas = discPorAno(ano, a);
+    const periodos = PERIODOS.map((periodo, p) => ({
+      periodo,
+      notas: disciplinas.map((disciplina) => {
+        const atual = a.notas.find((n) => n.disciplina === disciplina);
+        const nivel = atual ? atual.nota / notaMax(a) : nivelGeral;
+        const ruido = (rnd() - 0.5) * 0.22 + (p - 1) * 0.02;
+        const nota = Math.round((nivel + ruido) * max);
+        return { disciplina, nota: Math.max(minDe(escala), Math.min(max, nota)) };
+      })
+    }));
+    return { anoLetivo: anoLetivoMais(a.anoLetivo, -k), ano, escala, disciplinas, periodos, editavel: false };
+  });
+}
+
+function useNotasGuardadas(id: string, anoAtual: string) {
+  const [porAluno, setPorAluno] = useState<Record<string, Guardado>>({});
   useEffect(() => {
     try {
-      const v = JSON.parse(localStorage.getItem(`lousa.notas.${id}`) ?? '[]');
-      setPorAluno((p) => ({ ...p, [id]: v }));
+      const v = JSON.parse(localStorage.getItem(`lousa.notas.${id}`) ?? 'null');
+      // formato antigo (só uma lista de períodos do ano atual)
+      const g: Guardado = Array.isArray(v) ? { anos: { [anoAtual]: v }, extra: [] } : (v ?? { anos: {}, extra: [] });
+      setPorAluno((p) => ({ ...p, [id]: g }));
     } catch {
       /* sem localStorage: fica só em memória */
     }
-  }, [id]);
-  const lancar = (p: Periodo) =>
+  }, [id, anoAtual]);
+  const atualizar = (f: (g: Guardado) => Guardado) =>
     setPorAluno((prev) => {
-      const novo = [...(prev[id] ?? []).filter((x) => x.periodo !== p.periodo), p];
+      const novo = f(prev[id] ?? { anos: {}, extra: [] });
       try {
         localStorage.setItem(`lousa.notas.${id}`, JSON.stringify(novo));
       } catch {
@@ -573,85 +629,176 @@ function useNotasLancadas(id: string) {
       }
       return { ...prev, [id]: novo };
     });
-  return [porAluno[id] ?? [], lancar] as const;
+  const lancar = (anoLetivo: string, p: Periodo) =>
+    atualizar((g) => ({
+      ...g,
+      anos: { ...g.anos, [anoLetivo]: [...(g.anos[anoLetivo] ?? []).filter((x) => x.periodo !== p.periodo), p] }
+    }));
+  const iniciarAno = (anoLetivo: string, ano: number) =>
+    atualizar((g) => ({ ...g, extra: [...g.extra.filter((x) => x.anoLetivo !== anoLetivo), { anoLetivo, ano }] }));
+  return [porAluno[id] ?? { anos: {}, extra: [] }, lancar, iniciarAno] as const;
 }
 
-const resumo = (a: Aluno, notas: NotaDisc[]) => ({
+// junta histórico + ano atual + anos iniciados pelo tutor; só o último ano é editável
+function anosDoAluno(a: Aluno, g: Guardado): AnoLetivo[] {
+  const ordenar = (ps: Periodo[]) => [...ps].sort((x, y) => PERIODOS.indexOf(x.periodo) - PERIODOS.indexOf(y.periodo));
+  const atual: AnoLetivo = {
+    anoLetivo: a.anoLetivo,
+    ano: a.ano,
+    escala: a.escala as Escala,
+    disciplinas: a.notas.map((n) => n.disciplina),
+    periodos: ordenar([
+      { periodo: PERIODOS[0], notas: a.notas },
+      ...(g.anos[a.anoLetivo] ?? []).filter((p) => p.periodo !== PERIODOS[0])
+    ]),
+    editavel: true
+  };
+  const extra = [...g.extra]
+    .sort((x, y) => x.anoLetivo.localeCompare(y.anoLetivo))
+    .map(({ anoLetivo, ano }) => ({
+      anoLetivo,
+      ano,
+      escala: escalaDe(ano),
+      disciplinas: discPorAno(ano, a),
+      periodos: ordenar(g.anos[anoLetivo] ?? []),
+      editavel: true
+    }));
+  const todos = [...historico(a), atual, ...extra];
+  return todos.map((x, k) => ({ ...x, editavel: x.editavel && k === todos.length - 1 }));
+}
+
+const resumo = (e: Escala, notas: NotaDisc[]) => ({
   media: Math.round((notas.reduce((s, n) => s + n.nota, 0) / (notas.length || 1)) * 100) / 100,
-  negativas: notas.filter((n) => !positiva(a, n.nota)).length
+  negativas: notas.filter((n) => !positivaE(e, n.nota)).length
 });
 
-function NotasPeriodos({ a, periodos, lancar }: { a: Aluno; periodos: Periodo[]; lancar: (p: Periodo) => void }) {
-  const [sel, setSel] = useState(periodos.length - 1);
+function NotasAnos({
+  a,
+  anos,
+  lancar,
+  iniciarAno
+}: {
+  a: Aluno;
+  anos: AnoLetivo[];
+  lancar: (anoLetivo: string, p: Periodo) => void;
+  iniciarAno: (anoLetivo: string, ano: number) => void;
+}) {
+  const [selAno, setSelAno] = useState(anos.length - 1);
+  const [selPer, setSelPer] = useState<number | null>(null); // null = último período do ano
   const [aLancar, setALancar] = useState(false);
-  // mostra sempre o período mais recente quando aparece um novo (ao carregar ou ao lançar)
-  useEffect(() => setSel(periodos.length - 1), [periodos.length]);
-  const max = notaMax(a);
-  const atual = periodos[Math.min(sel, periodos.length - 1)];
-  const porLancar = PERIODOS.filter((p) => !periodos.some((x) => x.periodo === p));
+  // quando aparece um ano novo (ao carregar ou ao passar de ano) mostra-o
+  useEffect(() => setSelAno(anos.length - 1), [anos.length]);
+  const ano = anos[Math.min(selAno, anos.length - 1)];
+  const nPer = ano.periodos.length;
+  useEffect(() => setSelPer(null), [ano.anoLetivo, nPer]);
+  const per = ano.periodos[selPer ?? nPer - 1];
+  const max = maxDe(ano.escala);
+  const porLancar = ano.editavel ? PERIODOS.filter((p) => !ano.periodos.some((x) => x.periodo === p)) : [];
+  const ultimoAno = anos[anos.length - 1];
+  const podePassar = ano === ultimoAno && ultimoAno.periodos.length === PERIODOS.length && ultimoAno.ano < 12;
 
   return (
     <Secao
       titulo='Notas'
       acao={
-        porLancar.length > 0 && (
+        porLancar.length > 0 ? (
           <button className={cn(btn, ativo, 'flex items-center gap-1.5')} onClick={() => setALancar(true)}>
             <Icons.add className='size-4' /> Lançar notas do {porLancar[0]}
           </button>
-        )
+        ) : podePassar ? (
+          <button
+            className={cn(btn, ativo, 'flex items-center gap-1.5')}
+            onClick={() => {
+              const novo = anoLetivoMais(ultimoAno.anoLetivo, 1);
+              iniciarAno(novo, ultimoAno.ano + 1);
+              toast(`${a.nome.split(' ')[0]} passou para o ${ultimoAno.ano + 1}.º ano (${novo})`);
+            }}
+          >
+            <Icons.chevronRight className='size-4' /> Passar para o {ultimoAno.ano + 1}.º ano
+          </button>
+        ) : null
       }
     >
       <div className='rounded-xl border border-(--line) p-4'>
+        {/* anos letivos */}
+        <div className='mb-3 flex flex-wrap gap-2'>
+          {anos.map((x, k) => (
+            <button
+              key={x.anoLetivo}
+              onClick={() => setSelAno(k)}
+              className={cn(btn, x === ano ? ativo : inativo, 'flex items-center gap-1.5 px-3 py-1 text-xs')}
+            >
+              {curto(x.anoLetivo)} · {x.ano}.º ano
+              {x.editavel && <span className='rounded bg-white/25 px-1 text-[10px]'>atual</span>}
+            </button>
+          ))}
+        </div>
+
+        {/* períodos do ano escolhido */}
         <div className='mb-4 flex flex-wrap items-center justify-between gap-2'>
-          <div className='flex gap-1 rounded-lg bg-(--soft)/60 p-1'>
-            {periodos.map((p, k) => (
-              <button
-                key={p.periodo}
-                onClick={() => setSel(k)}
-                className={cn(
-                  'rounded-md px-3 py-1 text-xs font-medium transition',
-                  p === atual ? 'bg-(--surface,white) shadow-sm' : 'opacity-60 hover:opacity-100'
-                )}
-              >
-                {p.periodo}
-              </button>
-            ))}
-          </div>
-          <span className='text-xs opacity-60'>
-            Média {resumo(a, atual.notas).media.toLocaleString('pt-PT')} · escala {a.escala}
-          </span>
+          {nPer > 0 ? (
+            <div className='flex gap-1 rounded-lg bg-(--soft)/60 p-1'>
+              {ano.periodos.map((p, k) => (
+                <button
+                  key={p.periodo}
+                  onClick={() => setSelPer(k)}
+                  className={cn(
+                    'rounded-md px-3 py-1 text-xs font-medium transition',
+                    p === per ? 'bg-(--surface,white) shadow-sm' : 'opacity-60 hover:opacity-100'
+                  )}
+                >
+                  {p.periodo}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <span />
+          )}
+          {per && (
+            <span className='text-xs opacity-60'>
+              Média {resumo(ano.escala, per.notas).media.toLocaleString('pt-PT')} · escala {ano.escala}
+            </span>
+          )}
         </div>
-        <div key={atual.periodo} className='grid gap-x-8 gap-y-3 md:grid-cols-2'>
-          {atual.notas.map((n, k) => {
-            const ok = positiva(a, n.nota);
-            return (
-              <div key={n.disciplina} className='flex items-center gap-3'>
-                <span className='w-40 shrink-0 truncate text-sm'>{n.disciplina}</span>
-                <div className='h-2 flex-1 overflow-hidden rounded-full bg-(--soft)'>
-                  <div
-                    className={cn('h-full origin-left rounded-full', ok ? 'bg-(--accent)' : 'bg-red-400')}
-                    style={{
-                      width: `${(n.nota / max) * 100}%`,
-                      animation: `barra-in 600ms cubic-bezier(0.32,0.72,0,1) ${k * 40}ms both`
-                    }}
-                  />
+
+        {per ? (
+          <div key={`${ano.anoLetivo}-${per.periodo}`} className='grid gap-x-8 gap-y-3 md:grid-cols-2'>
+            {per.notas.map((n, k) => {
+              const ok = positivaE(ano.escala, n.nota);
+              return (
+                <div key={n.disciplina} className='flex items-center gap-3'>
+                  <span className='w-40 shrink-0 truncate text-sm'>{n.disciplina}</span>
+                  <div className='h-2 flex-1 overflow-hidden rounded-full bg-(--soft)'>
+                    <div
+                      className={cn('h-full origin-left rounded-full', ok ? 'bg-(--accent)' : 'bg-red-400')}
+                      style={{
+                        width: `${(n.nota / max) * 100}%`,
+                        animation: `barra-in 600ms cubic-bezier(0.32,0.72,0,1) ${k * 40}ms both`
+                      }}
+                    />
+                  </div>
+                  <span className={cn('w-7 text-right text-sm font-bold', !ok && 'text-red-500')}>{n.nota}</span>
                 </div>
-                <span className={cn('w-7 text-right text-sm font-bold', !ok && 'text-red-500')}>{n.nota}</span>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className='py-6 text-center text-sm opacity-60'>
+            Ainda sem notas em {ano.anoLetivo}. Lança as do 1.º período quando estiverem disponíveis.
+          </p>
+        )}
       </div>
 
-      {aLancar && (
+      {aLancar && porLancar[0] && (
         <LancarNotas
           a={a}
+          ano={ano}
           periodo={porLancar[0]}
           fechar={() => setALancar(false)}
           guardar={(p) => {
-            lancar(p);
+            lancar(ano.anoLetivo, p);
             setALancar(false);
-            toast(`Notas do ${p.periodo} lançadas`);
+            toast(`Notas do ${p.periodo} de ${ano.anoLetivo} lançadas`);
           }}
         />
       )}
@@ -661,20 +808,22 @@ function NotasPeriodos({ a, periodos, lancar }: { a: Aluno; periodos: Periodo[];
 
 function LancarNotas({
   a,
+  ano,
   periodo,
   fechar,
   guardar
 }: {
   a: Aluno;
+  ano: AnoLetivo;
   periodo: string;
   fechar: () => void;
   guardar: (p: Periodo) => void;
 }) {
-  const max = notaMax(a);
-  const minimo = a.escala === '1-5' ? 1 : 0;
+  const max = maxDe(ano.escala);
+  const minimo = minDe(ano.escala);
   const [valores, setValores] = useState<Record<string, string>>({});
   const valida = (v?: string) => v !== undefined && /^\d{1,2}$/.test(v) && +v >= minimo && +v <= max;
-  const tudoValido = a.notas.every((n) => valida(valores[n.disciplina]));
+  const tudoValido = ano.disciplinas.every((d) => valida(valores[d]));
 
   useEffect(() => {
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && fechar();
@@ -693,10 +842,7 @@ function LancarNotas({
         onSubmit={(e) => {
           e.preventDefault();
           if (tudoValido)
-            guardar({
-              periodo,
-              notas: a.notas.map((n) => ({ disciplina: n.disciplina, nota: +valores[n.disciplina] }))
-            });
+            guardar({ periodo, notas: ano.disciplinas.map((d) => ({ disciplina: d, nota: +valores[d] })) });
         }}
         className='w-full max-w-lg space-y-4 rounded-2xl bg-(--surface,white) p-6 shadow-2xl'
       >
@@ -704,7 +850,7 @@ function LancarNotas({
           <div>
             <h3 className='text-lg font-bold'>Lançar notas do {periodo}</h3>
             <p className='text-xs opacity-60'>
-              {a.nome} · notas inteiras de {minimo} a {max}
+              {a.nome} · {ano.anoLetivo} · {ano.ano}.º ano · notas inteiras de {minimo} a {max}
             </p>
           </div>
           <button
@@ -717,24 +863,24 @@ function LancarNotas({
         </div>
 
         <div className='grid max-h-[55vh] gap-2 overflow-auto sm:grid-cols-2'>
-          {a.notas.map((n, k) => {
-            const v = valores[n.disciplina];
+          {ano.disciplinas.map((d, k) => {
+            const v = valores[d];
             const erro = v !== undefined && v !== '' && !valida(v);
             return (
               <label
-                key={n.disciplina}
+                key={d}
                 className='flex items-center justify-between gap-3 rounded-lg bg-(--soft)/50 px-3 py-2 text-sm'
               >
-                <span className='truncate'>{n.disciplina}</span>
+                <span className='truncate'>{d}</span>
                 <input
                   autoFocus={k === 0}
                   inputMode='numeric'
                   value={v ?? ''}
-                  onChange={(e) => setValores((x) => ({ ...x, [n.disciplina]: e.target.value.trim() }))}
+                  onChange={(e) => setValores((x) => ({ ...x, [d]: e.target.value.trim() }))}
                   className={cn(
                     'w-14 rounded-md border bg-(--surface,white) px-2 py-1 text-center font-bold outline-none',
                     erro ? 'border-red-400 text-red-600' : 'border-(--line) focus:border-(--accent)',
-                    valida(v) && !positiva(a, +v!) && 'text-red-600'
+                    valida(v) && !positivaE(ano.escala, +v!) && 'text-red-600'
                   )}
                 />
               </label>
@@ -744,7 +890,7 @@ function LancarNotas({
 
         <div className='flex items-center justify-between gap-2 pt-1'>
           <span className='text-xs opacity-60'>
-            {a.notas.filter((n) => valida(valores[n.disciplina])).length} de {a.notas.length} disciplinas
+            {ano.disciplinas.filter((d) => valida(valores[d])).length} de {ano.disciplinas.length} disciplinas
           </span>
           <div className='flex gap-2'>
             <button type='button' className={cn(btn, inativo)} onClick={fechar}>
@@ -768,7 +914,7 @@ export default function FichaAluno() {
   const [vista, setVista] = useState<{ id: string; qual: 'avaliacoes' } | null>(null);
   const [novas, setNovas] = useState<Record<string, Av[]>>({}); // avaliações registadas nesta sessão (mock)
   const detalhe = useRef<HTMLDivElement>(null);
-  const [lancadas, lancar] = useNotasLancadas(id);
+  const [guardado, lancar, iniciarAno] = useNotasGuardadas(id, a?.anoLetivo ?? '');
   if (!a) notFound();
   const [removidas, setRemovidas] = useState<Record<string, string[]>>({}); // eliminadas nesta sessão (mock)
   const avs = [...(novas[a.id] ?? []), ...a.avaliacoes]
@@ -795,12 +941,12 @@ export default function FichaAluno() {
   const seguinte = alunos[(i + 1) % alunos.length];
   const max = notaMax(a);
   const totalFaltas = a.faltasJust + a.faltasInjust;
-  const periodos: Periodo[] = [
-    { periodo: PERIODOS[0], notas: a.notas },
-    ...lancadas.filter((p) => p.periodo !== PERIODOS[0])
-  ].sort((x, y) => PERIODOS.indexOf(x.periodo) - PERIODOS.indexOf(y.periodo));
-  const ultimo = periodos[periodos.length - 1];
-  const { media, negativas } = resumo(a, ultimo.notas);
+  // painel lateral: último período lançado (do ano mais recente que já tenha notas)
+  const anos = anosDoAluno(a, guardado);
+  const anoComNotas = [...anos].reverse().find((x) => x.periodos.length > 0)!;
+  const ultimo = anoComNotas.periodos[anoComNotas.periodos.length - 1];
+  const { media, negativas } = resumo(anoComNotas.escala, ultimo.notas);
+  const maxMedia = maxDe(anoComNotas.escala);
 
   const atividade = atividadeDe(a);
 
@@ -838,7 +984,7 @@ export default function FichaAluno() {
             <div className='rounded-xl bg-(--dot)/10 p-3'>
               <div className='text-2xl font-extrabold'>{media.toLocaleString('pt-PT')}</div>
               <div className='text-[11px] opacity-70'>
-                média /{max} · {ultimo.periodo.replace(' período', ' per.')}
+                média /{maxMedia} · {ultimo.periodo.replace(' período', ' per.')} {curto(anoComNotas.anoLetivo)}
               </div>
             </div>
             <div className='rounded-xl bg-(--dot)/10 p-3'>
@@ -942,7 +1088,7 @@ export default function FichaAluno() {
               </div>
             </Secao>
 
-            <NotasPeriodos key={a.id} a={a} periodos={periodos} lancar={lancar} />
+            <NotasAnos key={a.id} a={a} anos={anos} lancar={lancar} iniciarAno={iniciarAno} />
 
             <Avaliacoes a={a} avs={avs} eliminar={eliminar} verTodas={() => mudarVista('avaliacoes')} />
 
