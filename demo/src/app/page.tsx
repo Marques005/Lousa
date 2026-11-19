@@ -69,6 +69,8 @@ function comPistas(dia: number) {
   }));
 }
 
+const EXPIRA = 30 * 60_000; // tarefas riscadas desaparecem passados 30 minutos
+
 const tarefasIniciais = [
   'Lançar sumários de ontem',
   'Ligar ao encarregado do João',
@@ -82,7 +84,9 @@ export default function HorarioPage() {
   const disc = useDisc();
   const escuro = useEscuro();
   const [tarefas, setTarefas] = useState(tarefasIniciais);
-  const [feitas, setFeitas] = useState<string[]>([]);
+  // tarefa riscada → hora em que foi riscada; passados 30 min é eliminada
+  const [feitas, setFeitas] = useState<Record<string, number>>({});
+  const [relogio, setRelogio] = useState(0);
   const [nova, setNova] = useState('');
   const [agora, setAgora] = useState<Date | null>(null);
   const grelha = useRef<HTMLDivElement>(null);
@@ -96,7 +100,34 @@ export default function HorarioPage() {
     return () => clearInterval(t);
   }, []);
 
-  const toggle = (t: string) => setFeitas((f) => (f.includes(t) ? f.filter((x) => x !== t) : [...f, t]));
+  const toggle = (t: string) => {
+    if (feitas[t]) {
+      setFeitas(({ [t]: _, ...resto }) => resto);
+      return;
+    }
+    setFeitas((f) => ({ ...f, [t]: Date.now() }));
+    toast('Tarefa concluída', {
+      id: 'tarefa-riscada', // não empilha avisos ao riscar várias seguidas
+      description: 'As tarefas riscadas são eliminadas passados 30 minutos. Desmarca para a manter.'
+    });
+  };
+
+  // a cada 10 s: atualiza a contagem e elimina as tarefas riscadas há mais de 30 min
+  useEffect(() => {
+    const t = setInterval(() => {
+      const agoraMs = Date.now();
+      setRelogio(agoraMs);
+      setFeitas((f) => {
+        const expiradas = Object.keys(f).filter((k) => agoraMs - f[k] >= EXPIRA);
+        if (!expiradas.length) return f;
+        setTarefas((ts) => ts.filter((x) => !expiradas.includes(x)));
+        return Object.fromEntries(Object.entries(f).filter(([k]) => !expiradas.includes(k)));
+      });
+    }, 10_000);
+    return () => clearInterval(t);
+  }, []);
+  const faltam = (t: string) =>
+    Math.max(1, Math.ceil(Math.min(EXPIRA, EXPIRA - ((relogio || Date.now()) - feitas[t])) / 60_000));
   const adicionar = () => {
     const t = nova.trim();
     if (!t || tarefas.includes(t)) return;
@@ -113,14 +144,21 @@ export default function HorarioPage() {
       <section className={cn(card, 'hidden w-64 shrink-0 flex-col overflow-hidden lg:flex')}>
         <div className='flex items-center justify-between bg-[color-mix(in_srgb,var(--rail)_86%,var(--dot))] px-4 py-3 text-(--dot)'>
           <span className='font-semibold'>Tarefas</span>
-          <span className='rounded-full bg-white/25 px-2 text-sm'>{tarefas.length - feitas.length}</span>
+          <span className='rounded-full bg-white/25 px-2 text-sm'>{tarefas.filter((t) => !feitas[t]).length}</span>
         </div>
         <ul className='min-h-0 flex-1 space-y-1 overflow-auto p-3'>
           {tarefas.map((t) => (
             <li key={t} style={{ animation: 'aula-in 250ms ease-out' }}>
               <label className='flex cursor-pointer items-center justify-between gap-2 rounded-lg px-2 py-2 text-sm hover:bg-(--soft)'>
-                <span className={cn(feitas.includes(t) && 'line-through opacity-50')}>{t}</span>
-                <Checkbox checked={feitas.includes(t)} onCheckedChange={() => toggle(t)} />
+                <span className='min-w-0'>
+                  <span className={cn('block', feitas[t] && 'line-through opacity-50')}>{t}</span>
+                  {feitas[t] && (
+                    <span className='block text-[11px] opacity-50' style={{ animation: 'aula-in 250ms ease-out' }}>
+                      Eliminada daqui a {faltam(t)} min
+                    </span>
+                  )}
+                </span>
+                <Checkbox checked={!!feitas[t]} onCheckedChange={() => toggle(t)} />
               </label>
             </li>
           ))}
