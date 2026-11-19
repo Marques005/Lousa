@@ -167,22 +167,6 @@ export default function MapaFerias() {
       }
     >
       <div className='min-h-0 flex-1 space-y-5 overflow-auto px-6 pb-6'>
-        {/* resumo */}
-        <div className='grid grid-cols-2 gap-3 lg:grid-cols-4'>
-          {[
-            ['Disponíveis', disponiveis, `${DIAS_ANO} do ano + ${TRANSITADOS} transitados`],
-            ['Aprovados', aprovados, 'dias úteis'],
-            ['Pendentes', pendentes, 'à espera do admin'],
-            ['Por marcar', restantes, 'dias úteis']
-          ].map(([l, v, s]) => (
-            <div key={l} className='rounded-xl border border-(--line) p-4'>
-              <div className='text-xs opacity-60'>{l}</div>
-              <div className='text-2xl font-extrabold'>{v}</div>
-              <div className='text-[11px] opacity-50'>{s}</div>
-            </div>
-          ))}
-        </div>
-
         {/* mapa do ano */}
         <div className='overflow-x-auto rounded-xl border border-(--line)'>
           <div className='min-w-[1100px]'>
@@ -260,20 +244,36 @@ export default function MapaFerias() {
           </div>
         </div>
 
-        {/* legenda */}
-        <div className='flex flex-wrap gap-4 text-xs'>
-          {[
-            ['bg-red-500', 'Férias aprovadas'],
-            ['bg-amber-200', 'Pedido pendente'],
-            ['bg-emerald-600', 'Feriado'],
-            ['bg-(--soft)', 'Sábado'],
-            ['bg-[color-mix(in_srgb,var(--soft)_55%,var(--line))]', 'Domingo']
-          ].map(([c, l]) => (
-            <span key={l} className='flex items-center gap-1.5'>
-              <span className={cn('size-3 rounded-sm border border-(--line)', c)} />
-              {l}
+        {/* legenda + saldo de dias, numa só linha */}
+        <div className='flex flex-wrap items-center justify-between gap-x-6 gap-y-3 text-xs'>
+          <div className='flex flex-wrap gap-4'>
+            {[
+              ['bg-red-500', 'Férias aprovadas'],
+              ['bg-amber-200', 'Pedido pendente'],
+              ['bg-emerald-600', 'Feriado'],
+              ['bg-(--soft)', 'Sábado'],
+              ['bg-[color-mix(in_srgb,var(--soft)_55%,var(--line))]', 'Domingo']
+            ].map(([c, l]) => (
+              <span key={l} className='flex items-center gap-1.5'>
+                <span className={cn('size-3 rounded-sm border border-(--line)', c)} />
+                {l}
+              </span>
+            ))}
+          </div>
+          <div
+            className='flex items-center gap-3'
+            title={`${DIAS_ANO} dias do ano + ${TRANSITADOS} transitados do ano anterior`}
+          >
+            <div className='flex h-2 w-40 overflow-hidden rounded-full bg-(--soft)'>
+              <div className='bg-red-500' style={{ width: `${(aprovados / disponiveis) * 100}%` }} />
+              <div className='bg-amber-300' style={{ width: `${(pendentes / disponiveis) * 100}%` }} />
+            </div>
+            <span>
+              <b>{aprovados}</b> aprovados · <b>{pendentes}</b> pendentes ·{' '}
+              <b className='text-(--accent)'>{Math.max(restantes, 0)}</b> por marcar
+              <span className='opacity-50'> de {disponiveis} dias úteis</span>
             </span>
-          ))}
+          </div>
         </div>
 
         {/* pedidos */}
