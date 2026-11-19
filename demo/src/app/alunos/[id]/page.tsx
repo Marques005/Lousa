@@ -129,14 +129,16 @@ const escalaAv = (a: Aluno) => {
 };
 
 type Av = Aluno['avaliacoes'][number];
+const chave = (x: Av) => `${x.data}-${x.disciplina}-${x.tipo}-${x.nota}`;
 
-function TabelaAvaliacoes({ a, itens }: { a: Aluno; itens: Av[] }) {
+function TabelaAvaliacoes({ a, itens, eliminar }: { a: Aluno; itens: Av[]; eliminar?: (x: Av) => void }) {
   const { ok, fmt } = escalaAv(a);
+  const [aSair, setASair] = useState<string | null>(null); // linha a desaparecer antes de ser removida
   return (
     <table className='w-full text-sm'>
       <thead className='bg-(--soft)/60 text-left text-xs opacity-70'>
         <tr>
-          <th className='w-36 px-4 py-2 font-medium'>Data</th>
+          <th className={cn('w-36 py-2 pr-4 font-medium', eliminar ? 'pl-11' : 'pl-4')}>Data</th>
           <th className='font-medium'>Disciplina</th>
           <th className='w-44 font-medium'>Tipo</th>
           <th className='w-24 pr-4 text-right font-medium'>Nota</th>
@@ -145,12 +147,35 @@ function TabelaAvaliacoes({ a, itens }: { a: Aluno; itens: Av[] }) {
       <tbody>
         {itens.map((x, k) => (
           <tr
-            key={`${x.data}-${x.disciplina}-${x.tipo}-${x.nota}`}
-            className='border-t border-(--line)'
-            // entrada em cascata, como se a tabela fosse "desenrolando"
-            style={{ animation: `linha-in 420ms cubic-bezier(0.32,0.72,0,1) ${Math.min(k, 12) * 45}ms both` }}
+            key={chave(x)}
+            className='group border-t border-(--line) transition-colors hover:bg-(--soft)/40'
+            // entrada em cascata, como se a tabela fosse "desenrolando"; saída ao eliminar
+            style={{
+              animation:
+                aSair === chave(x)
+                  ? 'linha-out 260ms ease-in both'
+                  : `linha-in 420ms cubic-bezier(0.32,0.72,0,1) ${Math.min(k, 12) * 45}ms both`
+            }}
+            onAnimationEnd={(e) => {
+              if (e.animationName === 'linha-out') {
+                setASair(null);
+                eliminar?.(x);
+              }
+            }}
           >
-            <td className='px-4 py-2.5 whitespace-nowrap'>{dataPt(x.data)}</td>
+            <td className={cn('relative py-2.5 pr-4 whitespace-nowrap', eliminar ? 'pl-11' : 'pl-4')}>
+              {eliminar && (
+                <button
+                  title='Eliminar avaliação'
+                  aria-label='Eliminar avaliação'
+                  onClick={() => setASair(chave(x))}
+                  className='absolute top-1/2 left-3 -translate-x-1 -translate-y-1/2 rounded-md p-1 text-red-500 opacity-0 transition-all duration-200 group-hover:translate-x-0 group-hover:opacity-100 hover:bg-red-100 focus-visible:opacity-100'
+                >
+                  <Icons.trash className='size-4' />
+                </button>
+              )}
+              {dataPt(x.data)}
+            </td>
             <td>{x.disciplina}</td>
             <td className='opacity-70'>{x.tipo}</td>
             <td className='pr-4 text-right'>
@@ -171,14 +196,24 @@ function TabelaAvaliacoes({ a, itens }: { a: Aluno; itens: Av[] }) {
 }
 
 // Na ficha: só as 3 últimas; "Ver todas" troca a ficha pela vista completa
-function Avaliacoes({ a, avs, verTodas }: { a: Aluno; avs: Av[]; verTodas: () => void }) {
+function Avaliacoes({
+  a,
+  avs,
+  verTodas,
+  eliminar
+}: {
+  a: Aluno;
+  avs: Av[];
+  verTodas: () => void;
+  eliminar: (x: Av) => void;
+}) {
   return (
     <Secao
       titulo='Avaliações'
       acao={<span className='text-xs opacity-60'>Testes e trabalhos da escola · {escalaAv(a).rotulo}</span>}
     >
       <div className='overflow-hidden rounded-xl border border-(--line)'>
-        <TabelaAvaliacoes a={a} itens={avs.slice(0, 3)} />
+        <TabelaAvaliacoes a={a} itens={avs.slice(0, 3)} eliminar={eliminar} />
         {avs.length > 3 && (
           <button
             onClick={verTodas}
@@ -296,12 +331,14 @@ function TodasAvaliacoes({
   a,
   avs,
   voltar,
-  registar
+  registar,
+  eliminar
 }: {
   a: Aluno;
   avs: Av[];
   voltar: () => void;
   registar: (x: Av) => void;
+  eliminar: (x: Av) => void;
 }) {
   const [disc, setDisc] = useState<string | null>(null);
   const [aRegistar, setARegistar] = useState(false);
@@ -354,7 +391,7 @@ function TodasAvaliacoes({
         className='overflow-hidden rounded-xl border border-(--line)'
         style={{ animation: 'aula-in 250ms ease-out' }}
       >
-        <TabelaAvaliacoes a={a} itens={itens} />
+        <TabelaAvaliacoes a={a} itens={itens} eliminar={eliminar} />
       </div>
       {aRegistar && (
         <NovaAvaliacao
@@ -379,7 +416,20 @@ export default function FichaAluno() {
   const [novas, setNovas] = useState<Record<string, Av[]>>({}); // avaliações registadas nesta sessão (mock)
   const detalhe = useRef<HTMLDivElement>(null);
   if (!a) notFound();
-  const avs = [...(novas[a.id] ?? []), ...a.avaliacoes].sort((x, y) => y.data.localeCompare(x.data));
+  const [removidas, setRemovidas] = useState<Record<string, string[]>>({}); // eliminadas nesta sessão (mock)
+  const avs = [...(novas[a.id] ?? []), ...a.avaliacoes]
+    .filter((x) => !(removidas[a.id] ?? []).includes(chave(x)))
+    .sort((x, y) => y.data.localeCompare(x.data));
+  const eliminar = (x: Av) => {
+    const id = a.id;
+    setRemovidas((r) => ({ ...r, [id]: [...(r[id] ?? []), chave(x)] }));
+    toast(`Avaliação de ${x.disciplina} eliminada`, {
+      action: {
+        label: 'Anular',
+        onClick: () => setRemovidas((r) => ({ ...r, [id]: (r[id] ?? []).filter((c) => c !== chave(x)) }))
+      }
+    });
+  };
   const todas = todasDe === a.id; // volta à ficha ao mudar de aluno
   const mudarVista = (id: string | null) => {
     setTodasDe(id);
@@ -493,6 +543,7 @@ export default function FichaAluno() {
             key={a.id}
             a={a}
             avs={avs}
+            eliminar={eliminar}
             voltar={() => mudarVista(null)}
             registar={(x) => {
               setNovas((n) => ({ ...n, [a.id]: [x, ...(n[a.id] ?? [])] }));
@@ -559,7 +610,7 @@ export default function FichaAluno() {
               </div>
             </Secao>
 
-            <Avaliacoes a={a} avs={avs} verTodas={() => mudarVista(a.id)} />
+            <Avaliacoes a={a} avs={avs} eliminar={eliminar} verTodas={() => mudarVista(a.id)} />
 
             <Secao titulo='Observações'>
               <p className='rounded-xl bg-(--soft) p-4 text-sm'>{a.observacoes}</p>
@@ -604,7 +655,8 @@ export default function FichaAluno() {
         )}
       </div>
       <style>{`@keyframes aula-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes linha-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }`}</style>
+@keyframes linha-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes linha-out { to { opacity: 0; transform: translateX(-12px); } }`}</style>
     </main>
   );
 }
