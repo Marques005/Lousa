@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 4, "column": 0}, "map": {"version":3,"sources":["file:///Users/diogomarques/Desktop/PESSOAL/Lousa/demo/src/app/[...slug]/page.tsx"],"sourcesContent":["'use client';\n\nimport { usePathname } from 'next/navigation';\nimport { PageCard, tituloDe } from '../shell';\n\n// Páginas ainda por fazer: só mostram o título da navbar\nexport default function EmConstrucao() {\n  const path = usePathname();\n  return (\n    <PageCard titulo={tituloDe(path)}>\n      <div className='flex flex-1 items-center justify-center p-6 text-sm opacity-60'>\n        Página em construção\n      </div>\n    </PageCard>\n  );\n}\n"],"names":["EmConstrucao","path","titulo","className"],"mappings":";;;;;AAEA;AACA;AAHA;;;;AAMe,SAASA;IACtB,MAAMC,OAAO,IAAA,iJAAW;IACxB,qBACE,8OAAC,gIAAQ;QAACC,QAAQ,IAAA,gIAAQ,EAACD;kBACzB,cAAA,8OAAC;YAAIE,WAAU;sBAAiE;;;;;;;;;;;AAKtF"}}]
+}

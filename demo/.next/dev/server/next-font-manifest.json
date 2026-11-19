@@ -1,0 +1,22 @@
+{
+  "app": {
+    "[project]/src/app/[...slug]/page": [
+      "static/media/fe94039e51b616de-s.p.2w1y6b2cjpvd6.woff2"
+    ],
+    "[project]/src/app/alunos/page": [
+      "static/media/fe94039e51b616de-s.p.2w1y6b2cjpvd6.woff2"
+    ],
+    "[project]/src/app/mensagens/page": [
+      "static/media/fe94039e51b616de-s.p.2w1y6b2cjpvd6.woff2"
+    ],
+    "[project]/src/app/pagamentos/page": [
+      "static/media/fe94039e51b616de-s.p.2w1y6b2cjpvd6.woff2"
+    ],
+    "[project]/src/app/page": [
+      "static/media/fe94039e51b616de-s.p.2w1y6b2cjpvd6.woff2"
+    ]
+  },
+  "appUsingSizeAdjust": true,
+  "pages": {},
+  "pagesUsingSizeAdjust": false
+}
