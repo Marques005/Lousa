@@ -579,7 +579,9 @@ const curto = (al: string) => `${al.slice(0, 4)}/${al.slice(7)}`;
 // disciplinas por ano de escolaridade (tiradas do próprio mock)
 const discPorAno = (ano: number, a: Aluno): string[] => {
   if (ano === a.ano) return a.notas.map((n) => n.disciplina);
-  const ref = alunos.find((x) => x.ano === Math.max(9, Math.min(12, ano)) && (ano <= 9 || a.ano <= 9 || x.curso === a.curso));
+  const ref = alunos.find(
+    (x) => x.ano === Math.max(9, Math.min(12, ano)) && (ano <= 9 || a.ano <= 9 || x.curso === a.curso)
+  );
   return (ref ?? a).notas.map((n) => n.disciplina);
 };
 
@@ -647,9 +649,12 @@ function anosDoAluno(a: Aluno, g: Guardado): AnoLetivo[] {
     ano: a.ano,
     escala: a.escala as Escala,
     disciplinas: a.notas.map((n) => n.disciplina),
+    // o 1.º período vem do mock, a não ser que o tutor o tenha editado
     periodos: ordenar([
-      { periodo: PERIODOS[0], notas: a.notas },
-      ...(g.anos[a.anoLetivo] ?? []).filter((p) => p.periodo !== PERIODOS[0])
+      ...((g.anos[a.anoLetivo] ?? []).some((p) => p.periodo === PERIODOS[0])
+        ? []
+        : [{ periodo: PERIODOS[0], notas: a.notas }]),
+      ...(g.anos[a.anoLetivo] ?? [])
     ]),
     editavel: true
   };
@@ -685,120 +690,168 @@ function NotasAnos({
 }) {
   const [selAno, setSelAno] = useState(anos.length - 1);
   const [selPer, setSelPer] = useState<number | null>(null); // null = último período do ano
-  const [aLancar, setALancar] = useState(false);
+  const [form, setForm] = useState<{ periodo: string; novo: boolean } | null>(null);
+  const [dir, setDir] = useState(0); // para o lado de onde entra o ano ao trocar
   // quando aparece um ano novo (ao carregar ou ao passar de ano) mostra-o
   useEffect(() => setSelAno(anos.length - 1), [anos.length]);
-  const ano = anos[Math.min(selAno, anos.length - 1)];
+  const k = Math.min(selAno, anos.length - 1);
+  const ano = anos[k];
   const nPer = ano.periodos.length;
   useEffect(() => setSelPer(null), [ano.anoLetivo, nPer]);
   const per = ano.periodos[selPer ?? nPer - 1];
   const max = maxDe(ano.escala);
-  const porLancar = ano.editavel ? PERIODOS.filter((p) => !ano.periodos.some((x) => x.periodo === p)) : [];
-  const ultimoAno = anos[anos.length - 1];
-  const podePassar = ano === ultimoAno && ultimoAno.periodos.length === PERIODOS.length && ultimoAno.ano < 12;
+  const proximoPer = ano.editavel ? PERIODOS.find((p) => !ano.periodos.some((x) => x.periodo === p)) : undefined;
+  const completo = (p?: Periodo) => !!p && ano.disciplinas.every((d) => p.notas.some((n) => n.disciplina === d));
+  const podePassar = ano.editavel && !proximoPer && completo(ano.periodos[PERIODOS.length - 1]) && ano.ano < 12;
+  const mudarAno = (n: number) => {
+    setDir(n > k ? 1 : -1);
+    setSelAno(n);
+  };
 
   return (
     <Secao
       titulo='Notas'
       acao={
-        porLancar.length > 0 ? (
-          <button className={cn(btn, ativo, 'flex items-center gap-1.5')} onClick={() => setALancar(true)}>
-            <Icons.add className='size-4' /> Lançar notas do {porLancar[0]}
-          </button>
-        ) : podePassar ? (
-          <button
-            className={cn(btn, ativo, 'flex items-center gap-1.5')}
-            onClick={() => {
-              const novo = anoLetivoMais(ultimoAno.anoLetivo, 1);
-              iniciarAno(novo, ultimoAno.ano + 1);
-              toast(`${a.nome.split(' ')[0]} passou para o ${ultimoAno.ano + 1}.º ano (${novo})`);
-            }}
-          >
-            <Icons.chevronRight className='size-4' /> Passar para o {ultimoAno.ano + 1}.º ano
-          </button>
-        ) : null
+        <div className='flex gap-2'>
+          {ano.editavel && per && (
+            <button
+              className={cn(btn, inativo, 'flex items-center gap-1.5')}
+              onClick={() => setForm({ periodo: per.periodo, novo: false })}
+            >
+              <Icons.edit className='size-4' /> Editar {per.periodo}
+            </button>
+          )}
+          {proximoPer ? (
+            <button
+              className={cn(btn, ativo, 'flex items-center gap-1.5')}
+              onClick={() => setForm({ periodo: proximoPer, novo: true })}
+            >
+              <Icons.add className='size-4' /> Lançar {proximoPer}
+            </button>
+          ) : (
+            podePassar && (
+              <button
+                className={cn(btn, ativo, 'flex items-center gap-1.5')}
+                onClick={() => {
+                  const novo = anoLetivoMais(ano.anoLetivo, 1);
+                  iniciarAno(novo, ano.ano + 1);
+                  toast(`${a.nome.split(' ')[0]} passou para o ${ano.ano + 1}.º ano (${novo})`);
+                }}
+              >
+                <Icons.chevronRight className='size-4' /> Passar para o {ano.ano + 1}.º ano
+              </button>
+            )
+          )}
+        </div>
       }
     >
-      <div className='rounded-xl border border-(--line) p-4'>
-        {/* anos letivos */}
-        <div className='mb-3 flex flex-wrap gap-2'>
-          {anos.map((x, k) => (
-            <button
-              key={x.anoLetivo}
-              onClick={() => setSelAno(k)}
-              className={cn(btn, x === ano ? ativo : inativo, 'flex items-center gap-1.5 px-3 py-1 text-xs')}
-            >
-              {curto(x.anoLetivo)} · {x.ano}.º ano
-              {x.editavel && <span className='rounded bg-white/25 px-1 text-[10px]'>atual</span>}
-            </button>
-          ))}
-        </div>
-
-        {/* períodos do ano escolhido */}
+      <div className='overflow-hidden rounded-xl border border-(--line) p-4'>
         <div className='mb-4 flex flex-wrap items-center justify-between gap-2'>
           {nPer > 0 ? (
             <div className='flex gap-1 rounded-lg bg-(--soft)/60 p-1'>
-              {ano.periodos.map((p, k) => (
+              {ano.periodos.map((p, i) => (
                 <button
                   key={p.periodo}
-                  onClick={() => setSelPer(k)}
+                  onClick={() => setSelPer(i)}
                   className={cn(
                     'rounded-md px-3 py-1 text-xs font-medium transition',
                     p === per ? 'bg-(--surface,white) shadow-sm' : 'opacity-60 hover:opacity-100'
                   )}
                 >
                   {p.periodo}
+                  {!completo(p) && <span className='ml-1 text-amber-600'>•</span>}
                 </button>
               ))}
             </div>
           ) : (
             <span />
           )}
-          {per && (
-            <span className='text-xs opacity-60'>
-              Média {resumo(ano.escala, per.notas).media.toLocaleString('pt-PT')} · escala {ano.escala}
-            </span>
-          )}
+
+          {/* ano letivo: ‹ 2026/2027 › */}
+          <div className='flex items-center gap-1'>
+            <button
+              aria-label='Ano letivo anterior'
+              onClick={() => mudarAno(k - 1)}
+              disabled={k === 0}
+              className='rounded-md p-1 transition hover:bg-(--soft) disabled:opacity-30'
+            >
+              <Icons.chevronLeft className='size-4' />
+            </button>
+            <span className='w-24 text-center text-sm font-bold tabular-nums'>{ano.anoLetivo}</span>
+            <button
+              aria-label='Ano letivo seguinte'
+              onClick={() => mudarAno(k + 1)}
+              disabled={k === anos.length - 1}
+              className='rounded-md p-1 transition hover:bg-(--soft) disabled:opacity-30'
+            >
+              <Icons.chevronRight className='size-4' />
+            </button>
+          </div>
         </div>
 
-        {per ? (
-          <div key={`${ano.anoLetivo}-${per.periodo}`} className='grid gap-x-8 gap-y-3 md:grid-cols-2'>
-            {per.notas.map((n, k) => {
-              const ok = positivaE(ano.escala, n.nota);
-              return (
-                <div key={n.disciplina} className='flex items-center gap-3'>
-                  <span className='w-40 shrink-0 truncate text-sm'>{n.disciplina}</span>
-                  <div className='h-2 flex-1 overflow-hidden rounded-full bg-(--soft)'>
-                    <div
-                      className={cn('h-full origin-left rounded-full', ok ? 'bg-(--accent)' : 'bg-red-400')}
-                      style={{
-                        width: `${(n.nota / max) * 100}%`,
-                        animation: `barra-in 600ms cubic-bezier(0.32,0.72,0,1) ${k * 40}ms both`
-                      }}
-                    />
+        <div
+          key={`${ano.anoLetivo}-${per?.periodo}`}
+          style={
+            {
+              '--dx': `${dir * 40}px`,
+              animation: 'mes-in 420ms cubic-bezier(0.32,0.72,0,1) both'
+            } as React.CSSProperties
+          }
+        >
+          {per ? (
+            <div className='grid gap-x-8 gap-y-3 md:grid-cols-2'>
+              {ano.disciplinas.map((d, i) => {
+                const n = per.notas.find((x) => x.disciplina === d);
+                const ok = n ? positivaE(ano.escala, n.nota) : true;
+                return (
+                  <div key={d} className='flex items-center gap-3'>
+                    <span className='w-40 shrink-0 truncate text-sm'>{d}</span>
+                    <div className='h-2 flex-1 overflow-hidden rounded-full bg-(--soft)'>
+                      {n && (
+                        <div
+                          className={cn('h-full origin-left rounded-full', ok ? 'bg-(--accent)' : 'bg-red-400')}
+                          style={{
+                            width: `${(n.nota / max) * 100}%`,
+                            animation: `barra-in 600ms cubic-bezier(0.32,0.72,0,1) ${i * 40}ms both`
+                          }}
+                        />
+                      )}
+                    </div>
+                    <span
+                      title={n ? undefined : 'Nota por lançar'}
+                      className={cn('w-7 text-right text-sm font-bold', !ok && 'text-red-500', !n && 'opacity-30')}
+                    >
+                      {n ? n.nota : '—'}
+                    </span>
                   </div>
-                  <span className={cn('w-7 text-right text-sm font-bold', !ok && 'text-red-500')}>{n.nota}</span>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p className='py-6 text-center text-sm opacity-60'>
-            Ainda sem notas em {ano.anoLetivo}. Lança as do 1.º período quando estiverem disponíveis.
-          </p>
-        )}
+                );
+              })}
+            </div>
+          ) : (
+            <p className='py-6 text-center text-sm opacity-60'>
+              Ainda sem notas em {ano.anoLetivo}. Lança as do 1.º período quando estiverem disponíveis.
+            </p>
+          )}
+        </div>
       </div>
 
-      {aLancar && porLancar[0] && (
-        <LancarNotas
+      {form && (
+        <EditarNotas
           a={a}
           ano={ano}
-          periodo={porLancar[0]}
-          fechar={() => setALancar(false)}
+          periodo={form.periodo}
+          novo={form.novo}
+          inicial={ano.periodos.find((p) => p.periodo === form.periodo)?.notas ?? []}
+          fechar={() => setForm(null)}
           guardar={(p) => {
             lancar(ano.anoLetivo, p);
-            setALancar(false);
-            toast(`Notas do ${p.periodo} de ${ano.anoLetivo} lançadas`);
+            setForm(null);
+            const faltam = ano.disciplinas.length - p.notas.length;
+            toast(`Notas do ${p.periodo} guardadas`, {
+              description: faltam
+                ? `Faltam ${faltam} disciplina${faltam > 1 ? 's' : ''}; podes completar depois.`
+                : undefined
+            });
           }}
         />
       )}
@@ -806,24 +859,33 @@ function NotasAnos({
   );
 }
 
-function LancarNotas({
+// Lançar ou editar as notas de um período: pode ficar incompleto e ser completado mais tarde
+function EditarNotas({
   a,
   ano,
   periodo,
+  novo,
+  inicial,
   fechar,
   guardar
 }: {
   a: Aluno;
   ano: AnoLetivo;
   periodo: string;
+  novo: boolean;
+  inicial: NotaDisc[];
   fechar: () => void;
   guardar: (p: Periodo) => void;
 }) {
   const max = maxDe(ano.escala);
   const minimo = minDe(ano.escala);
-  const [valores, setValores] = useState<Record<string, string>>({});
+  const [valores, setValores] = useState<Record<string, string>>(() =>
+    Object.fromEntries(inicial.map((n) => [n.disciplina, String(n.nota)]))
+  );
   const valida = (v?: string) => v !== undefined && /^\d{1,2}$/.test(v) && +v >= minimo && +v <= max;
-  const tudoValido = ano.disciplinas.every((d) => valida(valores[d]));
+  const preenchidas = ano.disciplinas.filter((d) => valida(valores[d]));
+  const invalidas = ano.disciplinas.filter((d) => valores[d] && !valida(valores[d]));
+  const podeGuardar = preenchidas.length > 0 && invalidas.length === 0;
 
   useEffect(() => {
     const esc = (e: KeyboardEvent) => e.key === 'Escape' && fechar();
@@ -841,16 +903,17 @@ function LancarNotas({
         onClick={(e) => e.stopPropagation()}
         onSubmit={(e) => {
           e.preventDefault();
-          if (tudoValido)
-            guardar({ periodo, notas: ano.disciplinas.map((d) => ({ disciplina: d, nota: +valores[d] })) });
+          if (podeGuardar) guardar({ periodo, notas: preenchidas.map((d) => ({ disciplina: d, nota: +valores[d] })) });
         }}
         className='w-full max-w-lg space-y-4 rounded-2xl bg-(--surface,white) p-6 shadow-2xl'
       >
         <div className='flex items-start justify-between'>
           <div>
-            <h3 className='text-lg font-bold'>Lançar notas do {periodo}</h3>
+            <h3 className='text-lg font-bold'>
+              {novo ? 'Lançar' : 'Editar'} notas do {periodo}
+            </h3>
             <p className='text-xs opacity-60'>
-              {a.nome} · {ano.anoLetivo} · {ano.ano}.º ano · notas inteiras de {minimo} a {max}
+              {a.nome} · {ano.anoLetivo} · notas inteiras de {minimo} a {max}
             </p>
           </div>
           <button
@@ -863,9 +926,9 @@ function LancarNotas({
         </div>
 
         <div className='grid max-h-[55vh] gap-2 overflow-auto sm:grid-cols-2'>
-          {ano.disciplinas.map((d, k) => {
+          {ano.disciplinas.map((d, i) => {
             const v = valores[d];
-            const erro = v !== undefined && v !== '' && !valida(v);
+            const erro = !!v && !valida(v);
             return (
               <label
                 key={d}
@@ -873,12 +936,13 @@ function LancarNotas({
               >
                 <span className='truncate'>{d}</span>
                 <input
-                  autoFocus={k === 0}
+                  autoFocus={i === 0}
                   inputMode='numeric'
+                  placeholder='—'
                   value={v ?? ''}
                   onChange={(e) => setValores((x) => ({ ...x, [d]: e.target.value.trim() }))}
                   className={cn(
-                    'w-14 rounded-md border bg-(--surface,white) px-2 py-1 text-center font-bold outline-none',
+                    'w-14 rounded-md border bg-(--surface,white) px-2 py-1 text-center font-bold outline-none placeholder:font-normal placeholder:opacity-40',
                     erro ? 'border-red-400 text-red-600' : 'border-(--line) focus:border-(--accent)',
                     valida(v) && !positivaE(ano.escala, +v!) && 'text-red-600'
                   )}
@@ -888,16 +952,18 @@ function LancarNotas({
           })}
         </div>
 
-        <div className='flex items-center justify-between gap-2 pt-1'>
+        <p className='text-xs opacity-60'>Podes deixar disciplinas em branco e completá-las mais tarde.</p>
+
+        <div className='flex items-center justify-between gap-2'>
           <span className='text-xs opacity-60'>
-            {ano.disciplinas.filter((d) => valida(valores[d])).length} de {ano.disciplinas.length} disciplinas
+            {preenchidas.length} de {ano.disciplinas.length} disciplinas
           </span>
           <div className='flex gap-2'>
             <button type='button' className={cn(btn, inativo)} onClick={fechar}>
               Cancelar
             </button>
-            <button type='submit' disabled={!tudoValido} className={cn(btn, ativo, 'disabled:opacity-40')}>
-              Lançar notas
+            <button type='submit' disabled={!podeGuardar} className={cn(btn, ativo, 'disabled:opacity-40')}>
+              Guardar
             </button>
           </div>
         </div>
