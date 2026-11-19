@@ -444,7 +444,12 @@ const MESES = ['2026-09', '2026-10', '2026-11']; // meses com sessões no mock
 
 // Calendário mensal das sessões do aluno no centro
 function CalendarioSessoes({ sessoes }: { sessoes: Atividade[] }) {
-  const [m, setM] = useState(MESES.indexOf(HOJE.slice(0, 7)));
+  const [m, setMes] = useState(MESES.indexOf(HOJE.slice(0, 7)));
+  const [dir, setDir] = useState(0); // -1 mês anterior, 1 seguinte: o mês novo entra desse lado
+  const setM = (n: number) => {
+    setDir(n > m ? 1 : -1);
+    setMes(n);
+  };
   const [ano, mes] = MESES[m].split('-').map(Number);
   const primeiro = new Date(ano, mes - 1, 1);
   const vazios = (primeiro.getDay() + 6) % 7; // semana começa à segunda
@@ -456,7 +461,7 @@ function CalendarioSessoes({ sessoes }: { sessoes: Atividade[] }) {
   const titulo = primeiro.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
 
   return (
-    <div className='rounded-xl border border-(--line) p-4'>
+    <div className='overflow-hidden rounded-xl border border-(--line) p-4'>
       <div className='mb-3 flex items-center justify-between'>
         <div className='flex items-center gap-1'>
           <button
@@ -486,7 +491,16 @@ function CalendarioSessoes({ sessoes }: { sessoes: Atividade[] }) {
         </div>
       </div>
 
-      <div key={m} className='grid grid-cols-7 gap-1' style={{ animation: 'aula-in 250ms ease-out' }}>
+      <div
+        key={m}
+        className='grid grid-cols-7 gap-1'
+        style={
+          {
+            '--dx': `${dir * 40}px`,
+            animation: 'mes-in 480ms cubic-bezier(0.32,0.72,0,1) both'
+          } as React.CSSProperties
+        }
+      >
         {DIAS.map((d) => (
           <div key={d} className='pb-1 text-center text-[11px] font-medium opacity-50'>
             {d}
@@ -502,6 +516,10 @@ function CalendarioSessoes({ sessoes }: { sessoes: Atividade[] }) {
           return (
             <div
               key={data}
+              // semanas a "desenrolar" de cima para baixo
+              style={{
+                animation: `dia-in 420ms cubic-bezier(0.32,0.72,0,1) ${Math.floor((vazios + k) / 7) * 40 + ((vazios + k) % 7) * 12}ms both`
+              }}
               className={cn(
                 'min-h-16 rounded-lg border border-transparent p-1.5 text-xs',
                 fds ? 'bg-(--soft)/30' : 'bg-(--soft)/60',
@@ -734,10 +752,7 @@ export default function FichaAluno() {
               <p className='rounded-xl bg-(--soft) p-4 text-sm'>{a.observacoes}</p>
             </Secao>
 
-            <Secao
-              titulo='Calendário'
-              acao={<span className='text-xs opacity-60'>Sessões de explicação e apoio</span>}
-            >
+            <Secao titulo='Calendário' acao={<span className='text-xs opacity-60'>Sessões de explicação e apoio</span>}>
               <CalendarioSessoes key={a.id} sessoes={atividade} />
             </Secao>
           </div>
@@ -745,7 +760,9 @@ export default function FichaAluno() {
       </div>
       <style>{`@keyframes aula-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes linha-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-@keyframes linha-out { to { opacity: 0; transform: translateX(-12px); } }`}</style>
+@keyframes linha-out { to { opacity: 0; transform: translateX(-12px); } }
+@keyframes mes-in { from { opacity: 0; transform: translateX(var(--dx)); } to { opacity: 1; transform: none; } }
+@keyframes dia-in { from { opacity: 0; transform: translateY(8px) scale(0.97); } to { opacity: 1; transform: none; } }`}</style>
     </main>
   );
 }
