@@ -547,6 +547,220 @@ function CalendarioSessoes({ sessoes }: { sessoes: Atividade[] }) {
   );
 }
 
+// Notas por período (só notas finais de período, sem intercalares). O 1.º vem do mock;
+// os seguintes são lançados pelo tutor e ficam guardados no browser (sem backend).
+type NotaDisc = { disciplina: string; nota: number };
+type Periodo = { periodo: string; notas: NotaDisc[] };
+const PERIODOS = ['1.º período', '2.º período', '3.º período'];
+
+function useNotasLancadas(id: string) {
+  const [porAluno, setPorAluno] = useState<Record<string, Periodo[]>>({});
+  useEffect(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem(`lousa.notas.${id}`) ?? '[]');
+      setPorAluno((p) => ({ ...p, [id]: v }));
+    } catch {
+      /* sem localStorage: fica só em memória */
+    }
+  }, [id]);
+  const lancar = (p: Periodo) =>
+    setPorAluno((prev) => {
+      const novo = [...(prev[id] ?? []).filter((x) => x.periodo !== p.periodo), p];
+      try {
+        localStorage.setItem(`lousa.notas.${id}`, JSON.stringify(novo));
+      } catch {
+        /* idem */
+      }
+      return { ...prev, [id]: novo };
+    });
+  return [porAluno[id] ?? [], lancar] as const;
+}
+
+const resumo = (a: Aluno, notas: NotaDisc[]) => ({
+  media: Math.round((notas.reduce((s, n) => s + n.nota, 0) / (notas.length || 1)) * 100) / 100,
+  negativas: notas.filter((n) => !positiva(a, n.nota)).length
+});
+
+function NotasPeriodos({ a, periodos, lancar }: { a: Aluno; periodos: Periodo[]; lancar: (p: Periodo) => void }) {
+  const [sel, setSel] = useState(periodos.length - 1);
+  const [aLancar, setALancar] = useState(false);
+  // mostra sempre o período mais recente quando aparece um novo (ao carregar ou ao lançar)
+  useEffect(() => setSel(periodos.length - 1), [periodos.length]);
+  const max = notaMax(a);
+  const atual = periodos[Math.min(sel, periodos.length - 1)];
+  const porLancar = PERIODOS.filter((p) => !periodos.some((x) => x.periodo === p));
+
+  return (
+    <Secao
+      titulo='Notas'
+      acao={
+        porLancar.length > 0 && (
+          <button className={cn(btn, ativo, 'flex items-center gap-1.5')} onClick={() => setALancar(true)}>
+            <Icons.add className='size-4' /> Lançar notas do {porLancar[0]}
+          </button>
+        )
+      }
+    >
+      <div className='rounded-xl border border-(--line) p-4'>
+        <div className='mb-4 flex flex-wrap items-center justify-between gap-2'>
+          <div className='flex gap-1 rounded-lg bg-(--soft)/60 p-1'>
+            {periodos.map((p, k) => (
+              <button
+                key={p.periodo}
+                onClick={() => setSel(k)}
+                className={cn(
+                  'rounded-md px-3 py-1 text-xs font-medium transition',
+                  p === atual ? 'bg-(--surface,white) shadow-sm' : 'opacity-60 hover:opacity-100'
+                )}
+              >
+                {p.periodo}
+              </button>
+            ))}
+          </div>
+          <span className='text-xs opacity-60'>
+            Média {resumo(a, atual.notas).media.toLocaleString('pt-PT')} · escala {a.escala}
+          </span>
+        </div>
+        <div key={atual.periodo} className='grid gap-x-8 gap-y-3 md:grid-cols-2'>
+          {atual.notas.map((n, k) => {
+            const ok = positiva(a, n.nota);
+            return (
+              <div key={n.disciplina} className='flex items-center gap-3'>
+                <span className='w-40 shrink-0 truncate text-sm'>{n.disciplina}</span>
+                <div className='h-2 flex-1 overflow-hidden rounded-full bg-(--soft)'>
+                  <div
+                    className={cn('h-full origin-left rounded-full', ok ? 'bg-(--accent)' : 'bg-red-400')}
+                    style={{
+                      width: `${(n.nota / max) * 100}%`,
+                      animation: `barra-in 600ms cubic-bezier(0.32,0.72,0,1) ${k * 40}ms both`
+                    }}
+                  />
+                </div>
+                <span className={cn('w-7 text-right text-sm font-bold', !ok && 'text-red-500')}>{n.nota}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {aLancar && (
+        <LancarNotas
+          a={a}
+          periodo={porLancar[0]}
+          fechar={() => setALancar(false)}
+          guardar={(p) => {
+            lancar(p);
+            setALancar(false);
+            toast(`Notas do ${p.periodo} lançadas`);
+          }}
+        />
+      )}
+    </Secao>
+  );
+}
+
+function LancarNotas({
+  a,
+  periodo,
+  fechar,
+  guardar
+}: {
+  a: Aluno;
+  periodo: string;
+  fechar: () => void;
+  guardar: (p: Periodo) => void;
+}) {
+  const max = notaMax(a);
+  const minimo = a.escala === '1-5' ? 1 : 0;
+  const [valores, setValores] = useState<Record<string, string>>({});
+  const valida = (v?: string) => v !== undefined && /^\d{1,2}$/.test(v) && +v >= minimo && +v <= max;
+  const tudoValido = a.notas.every((n) => valida(valores[n.disciplina]));
+
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => e.key === 'Escape' && fechar();
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [fechar]);
+
+  return createPortal(
+    <div
+      className='fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4'
+      style={{ animation: 'aula-in 200ms ease-out' }}
+      onClick={fechar}
+    >
+      <form
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (tudoValido)
+            guardar({
+              periodo,
+              notas: a.notas.map((n) => ({ disciplina: n.disciplina, nota: +valores[n.disciplina] }))
+            });
+        }}
+        className='w-full max-w-lg space-y-4 rounded-2xl bg-(--surface,white) p-6 shadow-2xl'
+      >
+        <div className='flex items-start justify-between'>
+          <div>
+            <h3 className='text-lg font-bold'>Lançar notas do {periodo}</h3>
+            <p className='text-xs opacity-60'>
+              {a.nome} · notas inteiras de {minimo} a {max}
+            </p>
+          </div>
+          <button
+            type='button'
+            onClick={fechar}
+            className='rounded-md p-1 opacity-60 hover:bg-(--soft) hover:opacity-100'
+          >
+            <Icons.close className='size-4' />
+          </button>
+        </div>
+
+        <div className='grid max-h-[55vh] gap-2 overflow-auto sm:grid-cols-2'>
+          {a.notas.map((n, k) => {
+            const v = valores[n.disciplina];
+            const erro = v !== undefined && v !== '' && !valida(v);
+            return (
+              <label
+                key={n.disciplina}
+                className='flex items-center justify-between gap-3 rounded-lg bg-(--soft)/50 px-3 py-2 text-sm'
+              >
+                <span className='truncate'>{n.disciplina}</span>
+                <input
+                  autoFocus={k === 0}
+                  inputMode='numeric'
+                  value={v ?? ''}
+                  onChange={(e) => setValores((x) => ({ ...x, [n.disciplina]: e.target.value.trim() }))}
+                  className={cn(
+                    'w-14 rounded-md border bg-(--surface,white) px-2 py-1 text-center font-bold outline-none',
+                    erro ? 'border-red-400 text-red-600' : 'border-(--line) focus:border-(--accent)',
+                    valida(v) && !positiva(a, +v!) && 'text-red-600'
+                  )}
+                />
+              </label>
+            );
+          })}
+        </div>
+
+        <div className='flex items-center justify-between gap-2 pt-1'>
+          <span className='text-xs opacity-60'>
+            {a.notas.filter((n) => valida(valores[n.disciplina])).length} de {a.notas.length} disciplinas
+          </span>
+          <div className='flex gap-2'>
+            <button type='button' className={cn(btn, inativo)} onClick={fechar}>
+              Cancelar
+            </button>
+            <button type='submit' disabled={!tudoValido} className={cn(btn, ativo, 'disabled:opacity-40')}>
+              Lançar notas
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>,
+    document.getElementById('lousa-raiz') ?? document.body
+  );
+}
+
 export default function FichaAluno() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -554,6 +768,7 @@ export default function FichaAluno() {
   const [vista, setVista] = useState<{ id: string; qual: 'avaliacoes' } | null>(null);
   const [novas, setNovas] = useState<Record<string, Av[]>>({}); // avaliações registadas nesta sessão (mock)
   const detalhe = useRef<HTMLDivElement>(null);
+  const [lancadas, lancar] = useNotasLancadas(id);
   if (!a) notFound();
   const [removidas, setRemovidas] = useState<Record<string, string[]>>({}); // eliminadas nesta sessão (mock)
   const avs = [...(novas[a.id] ?? []), ...a.avaliacoes]
@@ -580,6 +795,12 @@ export default function FichaAluno() {
   const seguinte = alunos[(i + 1) % alunos.length];
   const max = notaMax(a);
   const totalFaltas = a.faltasJust + a.faltasInjust;
+  const periodos: Periodo[] = [
+    { periodo: PERIODOS[0], notas: a.notas },
+    ...lancadas.filter((p) => p.periodo !== PERIODOS[0])
+  ].sort((x, y) => PERIODOS.indexOf(x.periodo) - PERIODOS.indexOf(y.periodo));
+  const ultimo = periodos[periodos.length - 1];
+  const { media, negativas } = resumo(a, ultimo.notas);
 
   const atividade = atividadeDe(a);
 
@@ -615,11 +836,13 @@ export default function FichaAluno() {
           <h2 className='mb-2 text-sm font-bold'>Média e assiduidade</h2>
           <div className='grid grid-cols-2 gap-2 text-center'>
             <div className='rounded-xl bg-(--dot)/10 p-3'>
-              <div className='text-2xl font-extrabold'>{a.media.toLocaleString('pt-PT')}</div>
-              <div className='text-[11px] opacity-70'>média /{max}</div>
+              <div className='text-2xl font-extrabold'>{media.toLocaleString('pt-PT')}</div>
+              <div className='text-[11px] opacity-70'>
+                média /{max} · {ultimo.periodo.replace(' período', ' per.')}
+              </div>
             </div>
             <div className='rounded-xl bg-(--dot)/10 p-3'>
-              <div className='text-2xl font-extrabold'>{a.negativas}</div>
+              <div className='text-2xl font-extrabold'>{negativas}</div>
               <div className='text-[11px] opacity-70'>negativas</div>
             </div>
             <div className='col-span-2 rounded-xl bg-(--dot)/10 p-3'>
@@ -719,32 +942,7 @@ export default function FichaAluno() {
               </div>
             </Secao>
 
-            <Secao
-              titulo='Notas'
-              acao={
-                <span className='text-xs opacity-60'>
-                  {a.periodo} · escala {a.escala}
-                </span>
-              }
-            >
-              <div className='grid gap-x-8 gap-y-3 rounded-xl border border-(--line) p-4 md:grid-cols-2'>
-                {a.notas.map((n) => {
-                  const ok = positiva(a, n.nota);
-                  return (
-                    <div key={n.disciplina} className='flex items-center gap-3'>
-                      <span className='w-40 shrink-0 truncate text-sm'>{n.disciplina}</span>
-                      <div className='h-2 flex-1 overflow-hidden rounded-full bg-(--soft)'>
-                        <div
-                          className={cn('h-full rounded-full', ok ? 'bg-(--accent)' : 'bg-red-400')}
-                          style={{ width: `${(n.nota / max) * 100}%` }}
-                        />
-                      </div>
-                      <span className={cn('w-7 text-right text-sm font-bold', !ok && 'text-red-500')}>{n.nota}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </Secao>
+            <NotasPeriodos key={a.id} a={a} periodos={periodos} lancar={lancar} />
 
             <Avaliacoes a={a} avs={avs} eliminar={eliminar} verTodas={() => mudarVista('avaliacoes')} />
 
@@ -762,6 +960,7 @@ export default function FichaAluno() {
 @keyframes linha-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes linha-out { to { opacity: 0; transform: translateX(-12px); } }
 @keyframes mes-in { from { opacity: 0; transform: translateX(var(--dx)); } to { opacity: 1; transform: none; } }
+@keyframes barra-in { from { transform: scaleX(0); } to { transform: none; } }
 @keyframes dia-in { from { opacity: 0; transform: translateY(8px) scale(0.97); } to { opacity: 1; transform: none; } }`}</style>
     </main>
   );
