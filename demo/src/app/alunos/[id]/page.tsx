@@ -408,7 +408,7 @@ function TodasAvaliacoes({
   );
 }
 
-// Atividade no centro (mock): sessões 2x por semana desde o início do ano letivo, geradas a partir do id
+// Sessões no centro (mock): sessões 2x por semana desde o início do ano letivo, geradas a partir do id
 type Atividade = { assunto: string; tipo: string; data: string; estado: 'Agendada' | 'Concluída' | 'Faltou' };
 const HOJE = '2026-11-19';
 
@@ -432,86 +432,98 @@ function atividadeDe(a: Aluno): Atividade[] {
   return out.sort((x, y) => y.data.localeCompare(x.data));
 }
 
+const corPonto = { Agendada: 'bg-amber-400', Concluída: 'bg-emerald-500', Faltou: 'bg-red-500' };
 const corEstado = {
   Agendada: 'bg-amber-100 text-amber-800',
   Concluída: 'bg-emerald-100 text-emerald-800',
   Faltou: 'bg-red-100 text-red-700'
 };
 
-function TabelaAtividade({ itens }: { itens: Atividade[] }) {
+const DIAS = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'];
+const MESES = ['2026-09', '2026-10', '2026-11']; // meses com sessões no mock
+
+// Calendário mensal das sessões do aluno no centro
+function CalendarioSessoes({ sessoes }: { sessoes: Atividade[] }) {
+  const [m, setM] = useState(MESES.indexOf(HOJE.slice(0, 7)));
+  const [ano, mes] = MESES[m].split('-').map(Number);
+  const primeiro = new Date(ano, mes - 1, 1);
+  const vazios = (primeiro.getDay() + 6) % 7; // semana começa à segunda
+  const nDias = new Date(ano, mes, 0).getDate();
+  const porDia = new Map<string, Atividade[]>();
+  sessoes.forEach((x) => porDia.set(x.data, [...(porDia.get(x.data) ?? []), x]));
+  const doMes = sessoes.filter((x) => x.data.startsWith(MESES[m]));
+  const conta = (e: Atividade['estado']) => doMes.filter((x) => x.estado === e).length;
+  const titulo = primeiro.toLocaleDateString('pt-PT', { month: 'long', year: 'numeric' });
+
   return (
-    <table className='w-full text-sm'>
-      <thead className='bg-(--soft)/60 text-left text-xs opacity-70'>
-        <tr>
-          <th className='px-4 py-2 font-medium'>Assunto</th>
-          <th className='w-44 font-medium'>Tipo</th>
-          <th className='w-36 font-medium'>Data</th>
-          <th className='w-28 pr-4 font-medium'>Estado</th>
-        </tr>
-      </thead>
-      <tbody>
-        {itens.map((x, k) => (
-          <tr
-            key={x.data + x.assunto}
-            className='border-t border-(--line) transition-colors hover:bg-(--soft)/40'
-            style={{ animation: `linha-in 420ms cubic-bezier(0.32,0.72,0,1) ${Math.min(k, 12) * 45}ms both` }}
+    <div className='rounded-xl border border-(--line) p-4'>
+      <div className='mb-3 flex items-center justify-between'>
+        <div className='flex items-center gap-1'>
+          <button
+            onClick={() => setM(m - 1)}
+            disabled={m === 0}
+            className='rounded-md p-1 transition hover:bg-(--soft) disabled:opacity-30'
           >
-            <td className='px-4 py-2.5'>{x.assunto}</td>
-            <td className='opacity-70'>{x.tipo}</td>
-            <td className='whitespace-nowrap'>{dataPt(x.data)}</td>
-            <td className='pr-4'>
-              <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium', corEstado[x.estado])}>
-                {x.estado}
-              </span>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
-function TodaAtividade({ itens, voltar }: { itens: Atividade[]; voltar: () => void }) {
-  const [tipo, setTipo] = useState<string | null>(null);
-  const tipos = [...new Set(itens.map((x) => x.tipo))];
-  const lista = itens.filter((x) => !tipo || x.tipo === tipo);
-  const conta = (e: Atividade['estado']) => lista.filter((x) => x.estado === e).length;
-
-  return (
-    <div className='space-y-5' style={{ animation: 'aula-in 300ms ease-out' }}>
-      <div className='flex flex-wrap items-center gap-3'>
-        <button onClick={voltar} className={cn(btn, inativo, 'flex items-center gap-1 px-3')}>
-          <Icons.chevronLeft className='size-4' /> Voltar à ficha
-        </button>
-        <h2 className='text-base font-bold'>Toda a atividade no centro</h2>
+            <Icons.chevronLeft className='size-4' />
+          </button>
+          <span className='w-36 text-center text-sm font-bold first-letter:uppercase'>{titulo}</span>
+          <button
+            onClick={() => setM(m + 1)}
+            disabled={m === MESES.length - 1}
+            className='rounded-md p-1 transition hover:bg-(--soft) disabled:opacity-30'
+          >
+            <Icons.chevronRight className='size-4' />
+          </button>
+        </div>
+        <div className='flex flex-wrap gap-3 text-xs'>
+          {(['Concluída', 'Agendada', 'Faltou'] as const).map((e) => (
+            <span key={e} className='flex items-center gap-1.5'>
+              <span className={cn('size-2 rounded-full', corPonto[e])} />
+              {e === 'Concluída' ? 'Concluídas' : e === 'Agendada' ? 'Agendadas' : 'Faltas'}
+              <span className='font-semibold'>{conta(e)}</span>
+            </span>
+          ))}
+        </div>
       </div>
 
-      <div className='grid grid-cols-3 gap-3'>
-        {[
-          ['Concluídas', conta('Concluída')],
-          ['Agendadas', conta('Agendada')],
-          ['Faltas', conta('Faltou')]
-        ].map(([l, v]) => (
-          <div key={l} className='rounded-xl border border-(--line) p-4'>
-            <div className='text-xs opacity-60'>{l}</div>
-            <div className='text-2xl font-extrabold'>{v}</div>
+      <div key={m} className='grid grid-cols-7 gap-1' style={{ animation: 'aula-in 250ms ease-out' }}>
+        {DIAS.map((d) => (
+          <div key={d} className='pb-1 text-center text-[11px] font-medium opacity-50'>
+            {d}
           </div>
         ))}
-      </div>
-
-      <div className='flex flex-wrap gap-2'>
-        <button className={cn(btn, !tipo ? ativo : inativo)} onClick={() => setTipo(null)}>
-          Todas
-        </button>
-        {tipos.map((t) => (
-          <button key={t} className={cn(btn, tipo === t ? ativo : inativo)} onClick={() => setTipo(t)}>
-            {t}
-          </button>
+        {Array.from({ length: vazios }, (_, k) => (
+          <div key={`v${k}`} />
         ))}
-      </div>
-
-      <div key={tipo ?? 'todas'} className='overflow-hidden rounded-xl border border-(--line)'>
-        <TabelaAtividade itens={lista} />
+        {Array.from({ length: nDias }, (_, k) => {
+          const data = `${MESES[m]}-${String(k + 1).padStart(2, '0')}`;
+          const dia = porDia.get(data) ?? [];
+          const fds = (vazios + k) % 7 >= 5;
+          return (
+            <div
+              key={data}
+              className={cn(
+                'min-h-16 rounded-lg border border-transparent p-1.5 text-xs',
+                fds ? 'bg-(--soft)/30' : 'bg-(--soft)/60',
+                data === HOJE && 'border-(--accent)'
+              )}
+            >
+              <div className={cn('mb-1 font-semibold', data === HOJE ? 'text-(--accent)' : 'opacity-60')}>{k + 1}</div>
+              {dia.map((x) => (
+                <div
+                  key={x.assunto}
+                  title={`${x.assunto} · ${x.tipo} · ${x.estado}`}
+                  className={cn(
+                    'truncate rounded px-1 py-0.5 text-[10px] leading-tight font-medium',
+                    corEstado[x.estado]
+                  )}
+                >
+                  {x.assunto.replace('Sessão de ', '')}
+                </div>
+              ))}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -521,7 +533,7 @@ export default function FichaAluno() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const a = getAluno(id);
-  const [vista, setVista] = useState<{ id: string; qual: 'avaliacoes' | 'atividade' } | null>(null);
+  const [vista, setVista] = useState<{ id: string; qual: 'avaliacoes' } | null>(null);
   const [novas, setNovas] = useState<Record<string, Av[]>>({}); // avaliações registadas nesta sessão (mock)
   const detalhe = useRef<HTMLDivElement>(null);
   if (!a) notFound();
@@ -540,7 +552,7 @@ export default function FichaAluno() {
     });
   };
   const qual = vista?.id === a.id ? vista.qual : null; // volta à ficha ao mudar de aluno
-  const mudarVista = (q: 'avaliacoes' | 'atividade' | null) => {
+  const mudarVista = (q: 'avaliacoes' | null) => {
     setVista(q && { id: a.id, qual: q });
     detalhe.current?.scrollTo({ top: 0 });
   };
@@ -644,9 +656,7 @@ export default function FichaAluno() {
           </div>
         </div>
 
-        {qual === 'atividade' ? (
-          <TodaAtividade key={a.id} itens={atividade} voltar={() => mudarVista(null)} />
-        ) : qual === 'avaliacoes' ? (
+        {qual === 'avaliacoes' ? (
           <TodasAvaliacoes
             key={a.id}
             a={a}
@@ -724,19 +734,11 @@ export default function FichaAluno() {
               <p className='rounded-xl bg-(--soft) p-4 text-sm'>{a.observacoes}</p>
             </Secao>
 
-            <Secao titulo='Atividade no centro'>
-              <div className='overflow-hidden rounded-xl border border-(--line)'>
-                <TabelaAtividade itens={atividade.slice(0, 3)} />
-                {atividade.length > 3 && (
-                  <button
-                    onClick={() => mudarVista('atividade')}
-                    className='flex w-full items-center justify-center gap-1 border-t border-(--line) py-2 text-xs font-medium text-(--accent) transition hover:bg-(--soft)/60'
-                  >
-                    Ver toda ({atividade.length})
-                    <Icons.chevronRight className='size-4' />
-                  </button>
-                )}
-              </div>
+            <Secao
+              titulo='Calendário'
+              acao={<span className='text-xs opacity-60'>Sessões de explicação e apoio</span>}
+            >
+              <CalendarioSessoes key={a.id} sessoes={atividade} />
             </Secao>
           </div>
         )}
