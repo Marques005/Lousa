@@ -408,11 +408,120 @@ function TodasAvaliacoes({
   );
 }
 
+// Atividade no centro (mock): sessões 2x por semana desde o início do ano letivo, geradas a partir do id
+type Atividade = { assunto: string; tipo: string; data: string; estado: 'Agendada' | 'Concluída' | 'Faltou' };
+const HOJE = '2026-11-19';
+
+function atividadeDe(a: Aluno): Atividade[] {
+  let semente = [...a.id].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+  const rnd = () => (semente = (semente * 1103515245 + 12345) >>> 0) / 2 ** 32;
+  const out: Atividade[] = [];
+  for (let d = new Date('2026-09-22T12:00:00'); d <= new Date('2026-11-27T12:00:00'); d.setDate(d.getDate() + 1)) {
+    const dia = d.getDay();
+    if ((dia !== 2 && dia !== 4) || rnd() < 0.45) continue; // terças e quintas, nem todas
+    const data = d.toISOString().slice(0, 10);
+    const disc = a.notas[Math.floor(rnd() * a.notas.length)]?.disciplina ?? 'Estudo';
+    const tipo = rnd() < 0.6 ? 'Explicação' : 'Apoio ao estudo';
+    out.push({
+      assunto: `Sessão de ${disc}`,
+      tipo,
+      data,
+      estado: data > HOJE ? 'Agendada' : rnd() < 0.08 ? 'Faltou' : 'Concluída'
+    });
+  }
+  return out.sort((x, y) => y.data.localeCompare(x.data));
+}
+
+const corEstado = {
+  Agendada: 'bg-amber-100 text-amber-800',
+  Concluída: 'bg-emerald-100 text-emerald-800',
+  Faltou: 'bg-red-100 text-red-700'
+};
+
+function TabelaAtividade({ itens }: { itens: Atividade[] }) {
+  return (
+    <table className='w-full text-sm'>
+      <thead className='bg-(--soft)/60 text-left text-xs opacity-70'>
+        <tr>
+          <th className='px-4 py-2 font-medium'>Assunto</th>
+          <th className='w-44 font-medium'>Tipo</th>
+          <th className='w-36 font-medium'>Data</th>
+          <th className='w-28 pr-4 font-medium'>Estado</th>
+        </tr>
+      </thead>
+      <tbody>
+        {itens.map((x, k) => (
+          <tr
+            key={x.data + x.assunto}
+            className='border-t border-(--line) transition-colors hover:bg-(--soft)/40'
+            style={{ animation: `linha-in 420ms cubic-bezier(0.32,0.72,0,1) ${Math.min(k, 12) * 45}ms both` }}
+          >
+            <td className='px-4 py-2.5'>{x.assunto}</td>
+            <td className='opacity-70'>{x.tipo}</td>
+            <td className='whitespace-nowrap'>{dataPt(x.data)}</td>
+            <td className='pr-4'>
+              <span className={cn('rounded-full px-2 py-0.5 text-xs font-medium', corEstado[x.estado])}>
+                {x.estado}
+              </span>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function TodaAtividade({ itens, voltar }: { itens: Atividade[]; voltar: () => void }) {
+  const [tipo, setTipo] = useState<string | null>(null);
+  const tipos = [...new Set(itens.map((x) => x.tipo))];
+  const lista = itens.filter((x) => !tipo || x.tipo === tipo);
+  const conta = (e: Atividade['estado']) => lista.filter((x) => x.estado === e).length;
+
+  return (
+    <div className='space-y-5' style={{ animation: 'aula-in 300ms ease-out' }}>
+      <div className='flex flex-wrap items-center gap-3'>
+        <button onClick={voltar} className={cn(btn, inativo, 'flex items-center gap-1 px-3')}>
+          <Icons.chevronLeft className='size-4' /> Voltar à ficha
+        </button>
+        <h2 className='text-base font-bold'>Toda a atividade no centro</h2>
+      </div>
+
+      <div className='grid grid-cols-3 gap-3'>
+        {[
+          ['Concluídas', conta('Concluída')],
+          ['Agendadas', conta('Agendada')],
+          ['Faltas', conta('Faltou')]
+        ].map(([l, v]) => (
+          <div key={l} className='rounded-xl border border-(--line) p-4'>
+            <div className='text-xs opacity-60'>{l}</div>
+            <div className='text-2xl font-extrabold'>{v}</div>
+          </div>
+        ))}
+      </div>
+
+      <div className='flex flex-wrap gap-2'>
+        <button className={cn(btn, !tipo ? ativo : inativo)} onClick={() => setTipo(null)}>
+          Todas
+        </button>
+        {tipos.map((t) => (
+          <button key={t} className={cn(btn, tipo === t ? ativo : inativo)} onClick={() => setTipo(t)}>
+            {t}
+          </button>
+        ))}
+      </div>
+
+      <div key={tipo ?? 'todas'} className='overflow-hidden rounded-xl border border-(--line)'>
+        <TabelaAtividade itens={lista} />
+      </div>
+    </div>
+  );
+}
+
 export default function FichaAluno() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const a = getAluno(id);
-  const [todasDe, setTodasDe] = useState<string | null>(null);
+  const [vista, setVista] = useState<{ id: string; qual: 'avaliacoes' | 'atividade' } | null>(null);
   const [novas, setNovas] = useState<Record<string, Av[]>>({}); // avaliações registadas nesta sessão (mock)
   const detalhe = useRef<HTMLDivElement>(null);
   if (!a) notFound();
@@ -430,9 +539,9 @@ export default function FichaAluno() {
       }
     });
   };
-  const todas = todasDe === a.id; // volta à ficha ao mudar de aluno
-  const mudarVista = (id: string | null) => {
-    setTodasDe(id);
+  const qual = vista?.id === a.id ? vista.qual : null; // volta à ficha ao mudar de aluno
+  const mudarVista = (q: 'avaliacoes' | 'atividade' | null) => {
+    setVista(q && { id: a.id, qual: q });
     detalhe.current?.scrollTo({ top: 0 });
   };
 
@@ -442,13 +551,7 @@ export default function FichaAluno() {
   const max = notaMax(a);
   const totalFaltas = a.faltasJust + a.faltasInjust;
 
-  // atividade recente (mock): sessões no centro nas primeiras disciplinas do aluno
-  const atividade = a.notas.slice(0, 4).map((n, k) => ({
-    assunto: `Sessão de ${n.disciplina}`,
-    tipo: k % 2 ? 'Apoio' : 'Explicação',
-    data: dataPt(`2026-11-${String(18 - k * 2).padStart(2, '0')}`),
-    estado: k === 0 ? 'Agendada' : 'Concluída'
-  }));
+  const atividade = atividadeDe(a);
 
   return (
     <main className={cn(card, 'flex min-w-0 flex-1 overflow-hidden')}>
@@ -501,8 +604,8 @@ export default function FichaAluno() {
 
       {/* Detalhe */}
       <div ref={detalhe} className='min-w-0 flex-1 space-y-7 overflow-auto p-6'>
-        {/* barra de topo: escondida na vista de todas as avaliações (que tem o seu próprio cabeçalho) */}
-        {!todas && (
+        {/* barra de topo: escondida nas vistas completas (têm o seu próprio cabeçalho) */}
+        {!qual && (
           <div className='flex flex-wrap items-center justify-between gap-3'>
             <div className='flex items-center gap-2'>
               <Link href='/alunos' className={cn(btn, inativo, 'flex items-center gap-1 px-3')}>
@@ -541,7 +644,9 @@ export default function FichaAluno() {
           </div>
         </div>
 
-        {todas ? (
+        {qual === 'atividade' ? (
+          <TodaAtividade key={a.id} itens={atividade} voltar={() => mudarVista(null)} />
+        ) : qual === 'avaliacoes' ? (
           <TodasAvaliacoes
             key={a.id}
             a={a}
@@ -613,7 +718,7 @@ export default function FichaAluno() {
               </div>
             </Secao>
 
-            <Avaliacoes a={a} avs={avs} eliminar={eliminar} verTodas={() => mudarVista(a.id)} />
+            <Avaliacoes a={a} avs={avs} eliminar={eliminar} verTodas={() => mudarVista('avaliacoes')} />
 
             <Secao titulo='Observações'>
               <p className='rounded-xl bg-(--soft) p-4 text-sm'>{a.observacoes}</p>
@@ -621,37 +726,16 @@ export default function FichaAluno() {
 
             <Secao titulo='Atividade no centro'>
               <div className='overflow-hidden rounded-xl border border-(--line)'>
-                <table className='w-full text-sm'>
-                  <thead className='bg-(--soft)/60 text-left text-xs opacity-70'>
-                    <tr>
-                      <th className='px-4 py-2 font-medium'>Assunto</th>
-                      <th className='font-medium'>Tipo</th>
-                      <th className='font-medium'>Data</th>
-                      <th className='font-medium'>Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {atividade.map((x) => (
-                      <tr key={x.assunto} className='border-t border-(--line)'>
-                        <td className='px-4 py-2.5'>{x.assunto}</td>
-                        <td>{x.tipo}</td>
-                        <td>{x.data}</td>
-                        <td>
-                          <span
-                            className={cn(
-                              'rounded-full px-2 py-0.5 text-xs font-medium',
-                              x.estado === 'Agendada'
-                                ? 'bg-amber-100 text-amber-800'
-                                : 'bg-emerald-100 text-emerald-800'
-                            )}
-                          >
-                            {x.estado}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <TabelaAtividade itens={atividade.slice(0, 3)} />
+                {atividade.length > 3 && (
+                  <button
+                    onClick={() => mudarVista('atividade')}
+                    className='flex w-full items-center justify-center gap-1 border-t border-(--line) py-2 text-xs font-medium text-(--accent) transition hover:bg-(--soft)/60'
+                  >
+                    Ver toda ({atividade.length})
+                    <Icons.chevronRight className='size-4' />
+                  </button>
+                )}
               </div>
             </Secao>
           </div>
