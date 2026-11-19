@@ -144,7 +144,12 @@ function TabelaAvaliacoes({ a, itens }: { a: Aluno; itens: Av[] }) {
       </thead>
       <tbody>
         {itens.map((x, k) => (
-          <tr key={k} className='border-t border-(--line)'>
+          <tr
+            key={`${x.data}-${x.disciplina}-${x.tipo}-${x.nota}`}
+            className='border-t border-(--line)'
+            // entrada em cascata, como se a tabela fosse "desenrolando"
+            style={{ animation: `linha-in 420ms cubic-bezier(0.32,0.72,0,1) ${Math.min(k, 12) * 45}ms both` }}
+          >
             <td className='px-4 py-2.5 whitespace-nowrap'>{dataPt(x.data)}</td>
             <td>{x.disciplina}</td>
             <td className='opacity-70'>{x.tipo}</td>
@@ -598,7 +603,8 @@ export default function FichaAluno() {
           </div>
         )}
       </div>
-      <style>{`@keyframes aula-in { from { opacity: 0; } to { opacity: 1; } }`}</style>
+      <style>{`@keyframes aula-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes linha-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }`}</style>
     </main>
   );
 }
