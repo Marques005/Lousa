@@ -501,32 +501,35 @@ export default function FichaAluno() {
 
       {/* Detalhe */}
       <div ref={detalhe} className='min-w-0 flex-1 space-y-7 overflow-auto p-6'>
-        <div className='flex flex-wrap items-center justify-between gap-3'>
-          <div className='flex items-center gap-2'>
-            <Link href='/alunos' className={cn(btn, inativo, 'flex items-center gap-1 px-3')}>
-              <Icons.chevronLeft className='size-4' /> Os meus alunos
-            </Link>
-            <div className='flex items-center rounded-lg border border-(--line)'>
-              <Link href={`/alunos/${anterior.id}`} title={anterior.nome} className='p-1.5 hover:bg-(--soft)'>
-                <Icons.chevronLeft className='size-4' />
+        {/* barra de topo: escondida na vista de todas as avaliações (que tem o seu próprio cabeçalho) */}
+        {!todas && (
+          <div className='flex flex-wrap items-center justify-between gap-3'>
+            <div className='flex items-center gap-2'>
+              <Link href='/alunos' className={cn(btn, inativo, 'flex items-center gap-1 px-3')}>
+                <Icons.chevronLeft className='size-4' /> Os meus alunos
               </Link>
-              <span className='px-1 text-xs opacity-60'>
-                {i + 1} de {alunos.length}
-              </span>
-              <Link href={`/alunos/${seguinte.id}`} title={seguinte.nome} className='p-1.5 hover:bg-(--soft)'>
-                <Icons.chevronRight className='size-4' />
-              </Link>
+              <div className='flex items-center rounded-lg border border-(--line)'>
+                <Link href={`/alunos/${anterior.id}`} title={anterior.nome} className='p-1.5 hover:bg-(--soft)'>
+                  <Icons.chevronLeft className='size-4' />
+                </Link>
+                <span className='px-1 text-xs opacity-60'>
+                  {i + 1} de {alunos.length}
+                </span>
+                <Link href={`/alunos/${seguinte.id}`} title={seguinte.nome} className='p-1.5 hover:bg-(--soft)'>
+                  <Icons.chevronRight className='size-4' />
+                </Link>
+              </div>
+            </div>
+            <div className='flex gap-2'>
+              <button className={cn(btn, ativo, 'flex items-center gap-1.5')} onClick={() => router.push('/mensagens')}>
+                <Icons.chat className='size-4' /> Mensagem ao EE
+              </button>
+              <button className={cn(btn, inativo)} onClick={() => toast('Edição em breve (mock)')}>
+                Editar
+              </button>
             </div>
           </div>
-          <div className='flex gap-2'>
-            <button className={cn(btn, ativo, 'flex items-center gap-1.5')} onClick={() => router.push('/mensagens')}>
-              <Icons.chat className='size-4' /> Mensagem ao EE
-            </button>
-            <button className={cn(btn, inativo)} onClick={() => toast('Edição em breve (mock)')}>
-              Editar
-            </button>
-          </div>
-        </div>
+        )}
 
         {/* versão compacta do cabeçalho em ecrãs pequenos */}
         <div className='flex items-center gap-3 lg:hidden'>
