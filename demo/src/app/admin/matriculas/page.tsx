@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
@@ -373,15 +372,6 @@ export default function MatriculasPage() {
                       >
                         <Icons.edit className='size-4' />
                       </button>
-                      {m.alunoId && (
-                        <Link
-                          href={`/alunos/${m.alunoId}`}
-                          title='Ver ficha completa'
-                          className='rounded-md p-1.5 opacity-60 hover:bg-(--soft) hover:opacity-100'
-                        >
-                          <Icons.chevronRight className='size-4' />
-                        </Link>
-                      )}
                     </div>
                   </td>
                 </tr>
