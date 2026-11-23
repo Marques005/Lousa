@@ -226,54 +226,65 @@ export default function ContasPage() {
             <div
               key={c.id}
               className={cn(
-                'flex items-start gap-3 rounded-xl border border-(--line) p-3 transition hover:border-(--accent) hover:shadow-md',
+                'rounded-xl border border-(--line) p-4 transition hover:border-(--accent) hover:shadow-md',
                 !c.ativa && 'opacity-70'
               )}
             >
-              {c.foto ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={c.foto}
-                  alt=''
-                  className='size-11 shrink-0 rounded-full object-cover ring-2 ring-(--soft)'
-                />
-              ) : (
-                <span className='flex size-11 shrink-0 items-center justify-center rounded-full bg-(--dot)/15 text-sm font-bold ring-2 ring-(--soft)'>
-                  {iniciais(c.nome)}
-                </span>
-              )}
-              <div className='min-w-0 flex-1'>
-                <div className='flex items-center gap-1.5'>
-                  <span className='truncate font-semibold'>{c.nome}</span>
-                  {!c.ativa && (
-                    <span className='shrink-0 rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800'>
-                      Inativa
+              <div className='flex items-start justify-between gap-2'>
+                <div className='flex items-center gap-3'>
+                  {c.foto ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={c.foto}
+                      alt=''
+                      className='size-14 shrink-0 rounded-full object-cover ring-2 ring-(--soft)'
+                    />
+                  ) : (
+                    <span className='flex size-14 shrink-0 items-center justify-center rounded-full bg-(--dot)/15 text-base font-bold ring-2 ring-(--soft)'>
+                      {iniciais(c.nome)}
                     </span>
                   )}
+                  <div className='min-w-0'>
+                    <div className='truncate font-semibold'>{c.nome}</div>
+                    <div className='mt-1 flex flex-wrap gap-1.5'>
+                      {c.papeis.map((p) => (
+                        <Badge key={p} papel={p} />
+                      ))}
+                      {!c.ativa && (
+                        <span className='shrink-0 rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800'>
+                          Inativa
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className='truncate text-xs opacity-60'>{c.email}</div>
-                <div className='truncate text-xs opacity-60'>{c.telefone}</div>
-                <div className='mt-1.5 flex gap-1.5'>
-                  {c.papeis.map((p) => (
-                    <Badge key={p} papel={p} />
-                  ))}
+                <div className='flex shrink-0 gap-1'>
+                  <button
+                    title='Editar'
+                    onClick={() => setAEditar(c)}
+                    className='rounded-md p-1.5 opacity-60 hover:bg-(--soft) hover:opacity-100'
+                  >
+                    <Icons.edit className='size-4' />
+                  </button>
+                  <button
+                    title='Eliminar'
+                    onClick={() => setAEliminar(c)}
+                    className='rounded-md p-1.5 opacity-60 hover:bg-red-50 hover:text-red-600 hover:opacity-100'
+                  >
+                    <Icons.trash className='size-4' />
+                  </button>
                 </div>
               </div>
-              <div className='flex shrink-0 gap-1'>
-                <button
-                  title='Editar'
-                  onClick={() => setAEditar(c)}
-                  className='rounded-md p-1.5 opacity-60 hover:bg-(--soft) hover:opacity-100'
-                >
-                  <Icons.edit className='size-4' />
-                </button>
-                <button
-                  title='Eliminar'
-                  onClick={() => setAEliminar(c)}
-                  className='rounded-md p-1.5 opacity-60 hover:bg-red-50 hover:text-red-600 hover:opacity-100'
-                >
-                  <Icons.trash className='size-4' />
-                </button>
+
+              <div className='mt-3 space-y-1.5 border-t border-(--line) pt-3'>
+                <div className='flex items-center gap-2 text-xs opacity-70'>
+                  <Icons.send className='size-3.5 shrink-0 opacity-70' />
+                  <span className='truncate'>{c.email}</span>
+                </div>
+                <div className='flex items-center gap-2 text-xs opacity-70'>
+                  <Icons.phone className='size-3.5 shrink-0 opacity-70' />
+                  <span className='truncate'>{c.telefone}</span>
+                </div>
               </div>
             </div>
           ))}
