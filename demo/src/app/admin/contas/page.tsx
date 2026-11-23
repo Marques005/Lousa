@@ -230,9 +230,18 @@ export default function ContasPage() {
                 !c.ativa && 'opacity-70'
               )}
             >
-              <span className='flex size-11 shrink-0 items-center justify-center rounded-full bg-(--dot)/15 text-sm font-bold ring-2 ring-(--soft)'>
-                {iniciais(c.nome)}
-              </span>
+              {c.foto ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={c.foto}
+                  alt=''
+                  className='size-11 shrink-0 rounded-full object-cover ring-2 ring-(--soft)'
+                />
+              ) : (
+                <span className='flex size-11 shrink-0 items-center justify-center rounded-full bg-(--dot)/15 text-sm font-bold ring-2 ring-(--soft)'>
+                  {iniciais(c.nome)}
+                </span>
+              )}
               <div className='min-w-0 flex-1'>
                 <div className='flex items-center gap-1.5'>
                   <span className='truncate font-semibold'>{c.nome}</span>

@@ -6,6 +6,7 @@ export type Conta = {
   nome: string;
   email: string;
   telefone: string;
+  foto?: string;
   papeis: Papel[];
   ativa: boolean;
   criadaEm: string;
@@ -14,6 +15,7 @@ export type Conta = {
 export const contasIniciais: Conta[] = [
   {
     id: 'CNT001',
+    foto: '/contas/CNT001.jpg',
     nome: 'Beatriz Fonseca',
     email: 'beatriz.fonseca@example.com',
     telefone: '+351 000 300 001',
@@ -23,6 +25,7 @@ export const contasIniciais: Conta[] = [
   },
   {
     id: 'CNT002',
+    foto: '/contas/CNT002.jpg',
     nome: 'Tiago Dias',
     email: 'diretor.9a@example.com',
     telefone: '+351 000 300 002',
@@ -32,6 +35,7 @@ export const contasIniciais: Conta[] = [
   },
   {
     id: 'CNT003',
+    foto: '/contas/CNT003.jpg',
     nome: 'Rita Teixeira',
     email: 'rita.teixeira@example.com',
     telefone: '+351 000 300 003',
@@ -41,6 +45,7 @@ export const contasIniciais: Conta[] = [
   },
   {
     id: 'CNT004',
+    foto: '/contas/CNT004.jpg',
     nome: 'Nuno Cardoso',
     email: 'nuno.cardoso@example.com',
     telefone: '+351 000 300 004',
@@ -50,6 +55,7 @@ export const contasIniciais: Conta[] = [
   },
   {
     id: 'CNT005',
+    foto: '/contas/CNT005.jpg',
     nome: 'Ana Esteves',
     email: 'ana.esteves@example.com',
     telefone: '+351 000 300 005',
@@ -59,6 +65,7 @@ export const contasIniciais: Conta[] = [
   },
   {
     id: 'CNT006',
+    foto: '/contas/CNT006.jpg',
     nome: 'Hugo Marques',
     email: 'hugo.marques@example.com',
     telefone: '+351 000 300 006',
@@ -68,6 +75,7 @@ export const contasIniciais: Conta[] = [
   },
   {
     id: 'CNT007',
+    foto: '/contas/CNT007.jpg',
     nome: 'Sara Pinho',
     email: 'sara.pinho@example.com',
     telefone: '+351 000 300 007',
@@ -77,6 +85,7 @@ export const contasIniciais: Conta[] = [
   },
   {
     id: 'CNT008',
+    foto: '/contas/CNT008.jpg',
     nome: 'Luís Ramos',
     email: 'luis.ramos@example.com',
     telefone: '+351 000 300 008',
