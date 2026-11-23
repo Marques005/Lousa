@@ -13,6 +13,15 @@ const todosPapeis: Papel[] = ['Admin', 'Tutor'];
 const campo =
   'w-full rounded-lg border border-(--line) bg-(--surface,white) px-3 py-2 text-sm outline-none focus:border-(--accent)';
 
+function Estatistica({ label, valor }: { label: string; valor: string }) {
+  return (
+    <div className='rounded-xl border border-(--line) p-4'>
+      <div className='text-xs opacity-60'>{label}</div>
+      <div className='text-2xl font-extrabold'>{valor}</div>
+    </div>
+  );
+}
+
 function Badge({ papel }: { papel: Papel }) {
   return (
     <span
@@ -174,6 +183,9 @@ export default function ContasPage() {
       (c.nome.toLowerCase().includes(q.toLowerCase()) || c.email.toLowerCase().includes(q.toLowerCase())) &&
       (!filtro || c.papeis.includes(filtro))
   );
+  const admins = lista.filter((c) => c.papeis.includes('Admin')).length;
+  const tutores = lista.filter((c) => c.papeis.includes('Tutor')).length;
+  const inativas = lista.filter((c) => !c.ativa).length;
 
   return (
     <PageCard
@@ -201,46 +213,63 @@ export default function ContasPage() {
         </div>
       </div>
 
-      <div className='grid flex-1 content-start gap-3 overflow-auto p-4 sm:grid-cols-2 xl:grid-cols-3'>
-        {lista.map((c) => (
-          <div key={c.id} className='flex items-start gap-3 rounded-xl border border-(--line) p-3'>
-            <span className='flex size-11 shrink-0 items-center justify-center rounded-full bg-(--dot)/15 text-sm font-bold'>
-              {iniciais(c.nome)}
-            </span>
-            <div className='min-w-0 flex-1'>
-              <div className='flex items-center gap-1.5'>
-                <span className='truncate font-semibold'>{c.nome}</span>
-                {!c.ativa && (
-                  <span className='rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800'>Inativa</span>
-                )}
+      <div className='flex-1 space-y-4 overflow-auto p-4'>
+        <div className='grid grid-cols-2 gap-3 lg:grid-cols-4'>
+          <Estatistica label='Contas' valor={String(lista.length)} />
+          <Estatistica label='Admin' valor={String(admins)} />
+          <Estatistica label='Tutor' valor={String(tutores)} />
+          <Estatistica label='Inativas' valor={String(inativas)} />
+        </div>
+
+        <div className='grid content-start gap-3 sm:grid-cols-2 xl:grid-cols-3'>
+          {lista.map((c) => (
+            <div
+              key={c.id}
+              className={cn(
+                'flex items-start gap-3 rounded-xl border border-(--line) p-3 transition hover:border-(--accent) hover:shadow-md',
+                !c.ativa && 'opacity-70'
+              )}
+            >
+              <span className='flex size-11 shrink-0 items-center justify-center rounded-full bg-(--dot)/15 text-sm font-bold ring-2 ring-(--soft)'>
+                {iniciais(c.nome)}
+              </span>
+              <div className='min-w-0 flex-1'>
+                <div className='flex items-center gap-1.5'>
+                  <span className='truncate font-semibold'>{c.nome}</span>
+                  {!c.ativa && (
+                    <span className='shrink-0 rounded-md bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800'>
+                      Inativa
+                    </span>
+                  )}
+                </div>
+                <div className='truncate text-xs opacity-60'>{c.email}</div>
+                <div className='truncate text-xs opacity-60'>{c.telefone}</div>
+                <div className='mt-1.5 flex gap-1.5'>
+                  {c.papeis.map((p) => (
+                    <Badge key={p} papel={p} />
+                  ))}
+                </div>
               </div>
-              <div className='truncate text-xs opacity-60'>{c.email}</div>
-              <div className='truncate text-xs opacity-60'>{c.telefone}</div>
-              <div className='mt-1.5 flex gap-1.5'>
-                {c.papeis.map((p) => (
-                  <Badge key={p} papel={p} />
-                ))}
+              <div className='flex shrink-0 gap-1'>
+                <button
+                  title='Editar'
+                  onClick={() => setAEditar(c)}
+                  className='rounded-md p-1.5 opacity-60 hover:bg-(--soft) hover:opacity-100'
+                >
+                  <Icons.edit className='size-4' />
+                </button>
+                <button
+                  title='Eliminar'
+                  onClick={() => setAEliminar(c)}
+                  className='rounded-md p-1.5 opacity-60 hover:bg-red-50 hover:text-red-600 hover:opacity-100'
+                >
+                  <Icons.trash className='size-4' />
+                </button>
               </div>
             </div>
-            <div className='flex shrink-0 gap-1'>
-              <button
-                title='Editar'
-                onClick={() => setAEditar(c)}
-                className='rounded-md p-1.5 opacity-60 hover:bg-(--soft) hover:opacity-100'
-              >
-                <Icons.edit className='size-4' />
-              </button>
-              <button
-                title='Eliminar'
-                onClick={() => setAEliminar(c)}
-                className='rounded-md p-1.5 opacity-60 hover:bg-red-50 hover:text-red-600 hover:opacity-100'
-              >
-                <Icons.trash className='size-4' />
-              </button>
-            </div>
-          </div>
-        ))}
-        {lista.length === 0 && <p className='p-6 text-sm opacity-60'>Sem resultados.</p>}
+          ))}
+          {lista.length === 0 && <p className='p-6 text-sm opacity-60'>Sem resultados.</p>}
+        </div>
       </div>
 
       {aCriar && (
