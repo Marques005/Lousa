@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { cn } from '@/components/lib/utils';
@@ -15,13 +15,14 @@ const campo =
   'w-full rounded-lg border border-(--line) bg-(--surface,white) px-3 py-2 text-sm outline-none focus:border-(--accent)';
 
 // Associa a matrícula a um EE já existente (irmãos) ou regista um novo
-function PassoEE({ ee, setEe }: { ee: EE | null; setEe: (ee: EE | null) => void }) {
-  const [modo, setModo] = useState<'existente' | 'novo'>('existente');
-  const [q, setQ] = useState('');
-  const [nome, setNome] = useState('');
-  const [parentesco, setParentesco] = useState('');
-  const [email, setEmail] = useState('');
-  const [telefone, setTelefone] = useState('');
+function PassoEE({ ee, setEe, eeInicial }: { ee: EE | null; setEe: (ee: EE | null) => void; eeInicial?: EE | null }) {
+  const jaExiste = !!eeInicial && eesExistentes.some((e) => e.email === eeInicial.email);
+  const [modo, setModo] = useState<'existente' | 'novo'>(eeInicial && !jaExiste ? 'novo' : 'existente');
+  const [q, setQ] = useState(eeInicial && jaExiste ? eeInicial.nome : '');
+  const [nome, setNome] = useState(eeInicial && !jaExiste ? eeInicial.nome : '');
+  const [parentesco, setParentesco] = useState(eeInicial && !jaExiste ? eeInicial.parentesco : '');
+  const [email, setEmail] = useState(eeInicial && !jaExiste ? eeInicial.email : '');
+  const [telefone, setTelefone] = useState(eeInicial && !jaExiste ? eeInicial.telefone : '');
 
   // ao escrever um EE novo, propaga de imediato para o formulário principal
   useEffect(() => {
@@ -110,16 +111,24 @@ function PassoEE({ ee, setEe }: { ee: EE | null; setEe: (ee: EE | null) => void 
   );
 }
 
-function FormularioMatricula({ fechar, guardar }: { fechar: () => void; guardar: (m: Matricula) => void }) {
-  const [nome, setNome] = useState('');
-  const [nascimento, setNascimento] = useState('');
-  const [ano, setAno] = useState(9);
-  const [turma, setTurma] = useState('');
-  const [contacto, setContacto] = useState('');
-  const [ee, setEe] = useState<EE | null>(null);
+function FormularioMatricula({
+  inicial,
+  fechar,
+  guardar
+}: {
+  inicial: Matricula | null;
+  fechar: () => void;
+  guardar: (m: Matricula) => void;
+}) {
+  const [nome, setNome] = useState(inicial?.nome ?? '');
+  const [nascimento, setNascimento] = useState(inicial?.nascimento ?? '');
+  const [ano, setAno] = useState(inicial?.ano ?? 9);
+  const [turma, setTurma] = useState(inicial && inicial.turma !== '—' ? inicial.turma : '');
+  const [contacto, setContacto] = useState(inicial?.contacto ?? '');
+  const [ee, setEe] = useState<EE | null>(inicial?.ees[0] ?? null);
   const base = { id: nome || 'nova-matricula', ano };
-  const [horas, setHoras] = useState(horasMes(base));
-  const [preco, setPreco] = useState(precoMensal(base));
+  const [horas, setHoras] = useState(inicial?.horasMes ?? horasMes(base));
+  const [preco, setPreco] = useState(inicial?.precoMensal ?? precoMensal(base));
 
   const valida = nome.trim() !== '' && nascimento !== '' && ee !== null && horas > 0 && preco > 0;
 
@@ -141,7 +150,7 @@ function FormularioMatricula({ fechar, guardar }: { fechar: () => void; guardar:
           e.preventDefault();
           if (!valida || !ee) return;
           guardar({
-            id: `MAT${Date.now()}`,
+            id: inicial?.id ?? `MAT${Date.now()}`,
             nome: nome.trim(),
             nascimento,
             ano,
@@ -150,14 +159,15 @@ function FormularioMatricula({ fechar, guardar }: { fechar: () => void; guardar:
             ees: [ee],
             horasMes: horas,
             precoMensal: preco,
-            criadaEm: new Date().toISOString().slice(0, 10)
+            criadaEm: inicial?.criadaEm ?? new Date().toISOString().slice(0, 10),
+            alunoId: inicial?.alunoId
           });
         }}
         className='max-h-[85vh] w-full max-w-lg space-y-5 overflow-auto rounded-2xl bg-(--surface,white) p-6 shadow-2xl'
       >
         <div className='flex items-start justify-between'>
           <div>
-            <h3 className='text-lg font-bold'>Nova matrícula</h3>
+            <h3 className='text-lg font-bold'>{inicial ? 'Editar matrícula' : 'Nova matrícula'}</h3>
             <p className='text-xs opacity-60'>Ficha do aluno, encarregado de educação e mensalidade</p>
           </div>
           <button type='button' onClick={fechar} className='rounded-md p-1 opacity-60 hover:bg-(--soft) hover:opacity-100'>
@@ -201,7 +211,7 @@ function FormularioMatricula({ fechar, guardar }: { fechar: () => void; guardar:
 
         <section className='space-y-3'>
           <h4 className='text-xs font-semibold tracking-wide uppercase opacity-60'>Encarregado de educação</h4>
-          <PassoEE ee={ee} setEe={setEe} />
+          <PassoEE ee={ee} setEe={setEe} eeInicial={inicial?.ees[0] ?? null} />
         </section>
 
         <section className='space-y-3'>
@@ -235,7 +245,7 @@ function FormularioMatricula({ fechar, guardar }: { fechar: () => void; guardar:
             Cancelar
           </button>
           <button type='submit' disabled={!valida} className={cn(btn, ativo, 'disabled:opacity-40')}>
-            Matricular
+            {inicial ? 'Guardar' : 'Matricular'}
           </button>
         </div>
       </form>
@@ -244,21 +254,43 @@ function FormularioMatricula({ fechar, guardar }: { fechar: () => void; guardar:
   );
 }
 
+const euro = (v: number) => v.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 });
+
+function Estatistica({ label, valor }: { label: string; valor: string }) {
+  return (
+    <div className='rounded-xl border border-(--line) p-4'>
+      <div className='text-xs opacity-60'>{label}</div>
+      <div className='text-2xl font-extrabold'>{valor}</div>
+    </div>
+  );
+}
+
 export default function MatriculasPage() {
-  const [novas, setNovas] = useState<Matricula[]>([]);
+  // matrículas criadas ou editadas nesta sessão (função dev, sem backend), por id
+  const [extra, setExtra] = useState<Record<string, Matricula>>({});
   const [q, setQ] = useState('');
-  const [aMatricular, setAMatricular] = useState(false);
-  const lista = [...novas, ...matriculasExistentes].filter(
+  const [formAberto, setFormAberto] = useState<'nova' | Matricula | null>(null);
+
+  const idsExistentes = useMemo(() => new Set(matriculasExistentes.map((m) => m.id)), []);
+  const novas = Object.values(extra)
+    .filter((m) => !idsExistentes.has(m.id))
+    .sort((a, b) => b.criadaEm.localeCompare(a.criadaEm));
+  const existentes = matriculasExistentes.map((m) => extra[m.id] ?? m);
+  const todas = [...novas, ...existentes];
+
+  const lista = todas.filter(
     (m) =>
       m.nome.toLowerCase().includes(q.toLowerCase()) ||
       m.ees.some((e) => e.nome.toLowerCase().includes(q.toLowerCase()))
   );
+  const mensalidadeTotal = lista.reduce((s, m) => s + m.precoMensal, 0);
+  const horasMedia = lista.length ? lista.reduce((s, m) => s + m.horasMes, 0) / lista.length : 0;
 
   return (
     <PageCard
       titulo='Matrículas'
       acoes={
-        <button className={cn(btn, ativo, 'flex items-center gap-1.5')} onClick={() => setAMatricular(true)}>
+        <button className={cn(btn, ativo, 'flex items-center gap-1.5')} onClick={() => setFormAberto('nova')}>
           <Icons.add className='size-4' /> Nova matrícula
         </button>
       }
@@ -273,56 +305,84 @@ export default function MatriculasPage() {
         <span className='text-xs opacity-60'>{lista.length} matrículas</span>
       </div>
 
-      <div className='flex-1 overflow-auto p-4'>
+      <div className='flex-1 space-y-4 overflow-auto p-4'>
+        <div className='grid grid-cols-3 gap-3'>
+          <Estatistica label='Matrículas' valor={String(lista.length)} />
+          <Estatistica label='Mensalidade total' valor={euro(mensalidadeTotal)} />
+          <Estatistica label='Horas/mês em média' valor={horasMedia.toLocaleString('pt-PT', { maximumFractionDigits: 1 })} />
+        </div>
+
         <div className='overflow-hidden rounded-xl border border-(--line)'>
           <table className='w-full text-sm'>
             <thead className='bg-(--soft)/60 text-left text-xs opacity-70'>
               <tr>
-                <th className='px-4 py-2 font-medium'>Aluno</th>
+                <th className='px-4 py-2.5 font-medium'>Aluno</th>
                 <th className='font-medium'>Nascimento</th>
                 <th className='font-medium'>Turma</th>
                 <th className='font-medium'>Encarregado de educação</th>
                 <th className='font-medium'>Contacto</th>
-                <th className='font-medium'>Mensalidade</th>
-                <th className='w-10' />
+                <th className='font-medium text-right'>Mensalidade</th>
+                <th className='w-16 pr-4' />
               </tr>
             </thead>
             <tbody>
               {lista.map((m) => (
-                <tr key={m.id} className='border-t border-(--line)'>
-                  <td className='px-4 py-2.5'>
+                <tr key={m.id} className='border-t border-(--line) transition-colors hover:bg-(--soft)/40'>
+                  <td className='px-4 py-3'>
                     <div className='flex items-center gap-2.5'>
                       <span className='flex size-8 shrink-0 items-center justify-center rounded-full bg-(--dot)/15 text-xs font-bold'>
                         {iniciais(m.nome)}
                       </span>
                       <div className='min-w-0'>
-                        <div className='truncate font-semibold'>{m.nome}</div>
-                        {!m.alunoId && (
-                          <span className='rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800'>Nova</span>
-                        )}
+                        <div className='flex items-center gap-1.5'>
+                          <span className='truncate font-semibold'>{m.nome}</span>
+                          {!m.alunoId && (
+                            <span className='shrink-0 rounded-md bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800'>
+                              Nova
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </td>
                   <td className='whitespace-nowrap'>{dataPt(m.nascimento)}</td>
-                  <td>{m.ano}.º {m.turma}</td>
+                  <td className='whitespace-nowrap'>
+                    {m.ano}.º {m.turma}
+                  </td>
                   <td>
                     {m.ees.map((e) => (
-                      <div key={e.email} className='whitespace-nowrap'>
-                        {e.nome} <span className='opacity-60'>· {e.parentesco}</span>
+                      <div key={e.email} className='flex flex-wrap items-center gap-1.5 whitespace-nowrap py-0.5'>
+                        <span>{e.nome}</span>
+                        <span className='rounded-md bg-(--dot)/10 px-1.5 py-0.5 text-[10px] font-medium opacity-70'>
+                          {e.parentesco}
+                        </span>
                       </div>
                     ))}
                   </td>
                   <td className='text-xs whitespace-nowrap opacity-70'>{m.contacto || m.ees[0]?.telefone}</td>
-                  <td className='whitespace-nowrap'>
-                    {m.precoMensal.toLocaleString('pt-PT', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}
-                    <span className='opacity-60'> · {m.horasMes}h/mês</span>
+                  <td className='text-right whitespace-nowrap'>
+                    <div className='font-semibold'>{euro(m.precoMensal)}</div>
+                    <div className='text-[11px] opacity-60'>{m.horasMes}h/mês</div>
                   </td>
-                  <td className='pr-4 text-right'>
-                    {m.alunoId && (
-                      <Link href={`/alunos/${m.alunoId}`} title='Ver ficha completa' className='opacity-60 hover:opacity-100'>
-                        <Icons.chevronRight className='size-4' />
-                      </Link>
-                    )}
+                  <td className='pr-4'>
+                    <div className='flex items-center justify-end gap-1'>
+                      <button
+                        title='Editar matrícula'
+                        onClick={() => setFormAberto(m)}
+                        className='rounded-md p-1.5 opacity-60 hover:bg-(--soft) hover:opacity-100'
+                      >
+                        <Icons.edit className='size-4' />
+                      </button>
+                      {m.alunoId && (
+                        <Link
+                          href={`/alunos/${m.alunoId}`}
+                          title='Ver ficha completa'
+                          className='rounded-md p-1.5 opacity-60 hover:bg-(--soft) hover:opacity-100'
+                        >
+                          <Icons.chevronRight className='size-4' />
+                        </Link>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -332,13 +392,14 @@ export default function MatriculasPage() {
         </div>
       </div>
 
-      {aMatricular && (
+      {formAberto && (
         <FormularioMatricula
-          fechar={() => setAMatricular(false)}
+          inicial={formAberto === 'nova' ? null : formAberto}
+          fechar={() => setFormAberto(null)}
           guardar={(m) => {
-            setNovas((ms) => [m, ...ms]);
-            toast(`Matrícula de ${m.nome} criada`);
-            setAMatricular(false);
+            setExtra((ex) => ({ ...ex, [m.id]: m }));
+            toast(formAberto === 'nova' ? `Matrícula de ${m.nome} criada` : `Matrícula de ${m.nome} atualizada`);
+            setFormAberto(null);
           }}
         />
       )}
