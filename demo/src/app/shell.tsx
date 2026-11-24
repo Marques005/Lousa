@@ -177,7 +177,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         title={item.nome}
         onClick={(e) => {
           e.preventDefault();
-          if (atual) return;
+          if (path === item.href) return; // numa subpágina (ex.: ficha do aluno) o clique volta à lista
           crossfade();
           router.push(item.href);
         }}
