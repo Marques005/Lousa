@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createPortal } from 'react-dom';
 import { toast } from 'sonner';
 import { cn } from '@/components/lib/utils';
@@ -269,6 +270,7 @@ export default function MatriculasPage() {
   const [extra, setExtra] = useState<Record<string, Matricula>>({});
   const [q, setQ] = useState('');
   const [formAberto, setFormAberto] = useState<'nova' | Matricula | null>(null);
+  const router = useRouter();
 
   const idsExistentes = useMemo(() => new Set(matriculasExistentes.map((m) => m.id)), []);
   const novas = Object.values(extra)
@@ -326,7 +328,13 @@ export default function MatriculasPage() {
             </thead>
             <tbody>
               {lista.map((m) => (
-                <tr key={m.id} className='border-t border-(--line) transition-colors hover:bg-(--soft)/40'>
+                <tr
+                  key={m.id}
+                  // matrículas com ficha abrem a página do aluno
+                  onClick={() => m.alunoId && router.push(`/alunos/${m.alunoId}`)}
+                  title={m.alunoId ? `Abrir ficha de ${m.nome}` : undefined}
+                  className={cn('border-t border-(--line) transition-colors hover:bg-(--soft)/40', m.alunoId && 'cursor-pointer')}
+                >
                   <td className='px-4 py-3'>
                     <div className='flex items-center gap-2.5'>
                       <span className='flex size-8 shrink-0 items-center justify-center rounded-full bg-(--dot)/15 text-xs font-bold'>
@@ -367,7 +375,10 @@ export default function MatriculasPage() {
                     <div className='flex items-center justify-end gap-1'>
                       <button
                         title='Editar matrícula'
-                        onClick={() => setFormAberto(m)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setFormAberto(m);
+                        }}
                         className='rounded-md p-1.5 opacity-60 hover:bg-(--soft) hover:opacity-100'
                       >
                         <Icons.edit className='size-4' />

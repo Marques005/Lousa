@@ -139,10 +139,11 @@ const navAluno: Item[] = [
 const hrefs = (items: Item[]): string[] => items.flatMap((i) => (i.sub ? hrefs(i.sub) : [i.href]));
 
 const papeis = [
-  { nome: 'Admin', ini: 'AD', nav: navAdmin },
-  { nome: 'Tutor', ini: 'TU', nav: navTutor },
-  { nome: 'Aluno / EE', ini: 'EE', nav: navAluno }
-].map((p) => ({ ...p, paginas: hrefs(p.nav) }));
+  // extra: páginas fora do menu a que a conta também tem acesso (ex.: ficha do aluno a partir das matrículas)
+  { nome: 'Admin', ini: 'AD', nav: navAdmin, extra: ['/alunos'] },
+  { nome: 'Tutor', ini: 'TU', nav: navTutor, extra: [] },
+  { nome: 'Aluno / EE', ini: 'EE', nav: navAluno, extra: [] }
+].map((p) => ({ ...p, paginas: [...hrefs(p.nav), ...p.extra] }));
 const PapelCtx = createContext(papeis[0]);
 export const usePapel = () => useContext(PapelCtx);
 

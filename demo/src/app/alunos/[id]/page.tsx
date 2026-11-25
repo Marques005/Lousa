@@ -5,7 +5,7 @@ import { notFound, useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { cn } from '@/components/lib/utils';
 import { Icons } from '@/components/icons';
-import { ativo, btn, card, inativo } from '../../shell';
+import { ativo, btn, card, inativo, usePapel } from '../../shell';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { type Aluno, alunos, dataPt, getAluno, iniciais, notaMax, positiva } from '../_data';
@@ -976,6 +976,12 @@ function EditarNotas({
 export default function FichaAluno() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  // o admin chega cá pelas matrículas; o tutor pela lista dos seus alunos
+  const papel = usePapel();
+  const voltar =
+    papel.nome === 'Admin'
+      ? { href: '/admin/matriculas', nome: 'Matrículas' }
+      : { href: '/alunos', nome: 'Os meus alunos' };
   const a = getAluno(id);
   const [vista, setVista] = useState<{ id: string; qual: 'avaliacoes' } | null>(null);
   const [novas, setNovas] = useState<Record<string, Av[]>>({}); // avaliações registadas nesta sessão (mock)
@@ -1073,8 +1079,8 @@ export default function FichaAluno() {
         {!qual && (
           <div className='flex flex-wrap items-center justify-between gap-3'>
             <div className='flex items-center gap-2'>
-              <Link href='/alunos' className={cn(btn, inativo, 'flex items-center gap-1 px-3')}>
-                <Icons.chevronLeft className='size-4' /> Os meus alunos
+              <Link href={voltar.href} className={cn(btn, inativo, 'flex items-center gap-1 px-3')}>
+                <Icons.chevronLeft className='size-4' /> {voltar.nome}
               </Link>
               <div className='flex items-center rounded-lg border border-(--line)'>
                 <Link href={`/alunos/${anterior.id}`} title={anterior.nome} className='p-1.5 hover:bg-(--soft)'>
